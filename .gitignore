@@ -1,0 +1,4 @@
+node_modules/*
+target/*
+data-object.iml
+src/test/gen

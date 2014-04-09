@@ -1,0 +1,20 @@
+{
+    "name": "data-object",
+    "version": "0.0.1",
+    "description": "ODM Layer",
+    "main" : "src/main/js/DataObject",
+    "scripts": {
+        "test": "gulp test"
+    },
+    "author": "John Johnson II",
+    "license": "BSD-2-Clause",
+    "devDependencies" : {
+        "gulp" : "latest",
+        "gulp-util" : "latest",
+        "gulp-cat" : "latest",
+        "gulp-mocha" : "latest",
+        "gulp-istanbul" : "latest",
+        "chai" : "latest",
+        "sinon" : "latest"
+    }
+}
