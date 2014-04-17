@@ -7,39 +7,39 @@ DataObject = require('../../..');
 describe('DataObject', function () {
     var testObject;
 
-    beforeEach(function () {
-        Object.keys(DataObject.prototype.plugins).forEach(function (key) {
-            delete DataObject.prototype.plugins[key];
-        });
-    });
-
-    it('should have the [ Transaction ] property', function () {
-        expect(DataObject).to.have.property('Transaction');
-        expect(DataObject.Transaction).to.be.a('function');
-    });
-
     it('should have the [ Utility ] property', function () {
         expect(DataObject).to.have.property('Utility');
         expect(DataObject.Utility).to.be.a('function');
     });
 
-    it('should have the special [ prototype.plugins ] property', function () {
-        expect(Object.getOwnPropertyDescriptor(DataObject.prototype, 'plugins')).to.deep.equal({
-            writable : false,
-            enumerable : false,
-            configurable : false,
-            value : {}
-        });
+    it('should have the [ Database ] property', function () {
+        expect(DataObject).to.have.property('Database');
+        expect(DataObject.Database).to.be.a('function');
     });
 
     describe('static .registerPlugin()', function () {
-        var pluginConstructor,  plugin;
+        var pluginConstructor,  plugin, realPlugins;
         beforeEach(function () {
             plugin = {
                 type : 'random',
                 name : 'test'
             };
             pluginConstructor = sinon.stub().returns(plugin);
+
+            realPlugins = {};
+            Object.keys(DataObject.prototype.plugins).forEach(function (key) {
+                realPlugins[key] = DataObject.prototype.plugins[key];
+                delete DataObject.prototype.plugins[key];
+            });
+        });
+
+        afterEach(function () {
+            Object.keys(DataObject.prototype.plugins).forEach(function (key) {
+                delete DataObject.prototype.plugins[key];
+            });
+            Object.keys(realPlugins).forEach(function (key) {
+                DataObject.prototype.plugins[key] = realPlugins[key];
+            });
         });
 
         it('should instantiate provided plugin', function () {
@@ -125,12 +125,12 @@ describe('DataObject', function () {
             expect(TestClass).to.have.property('definition');
         });
 
-        it('should set another [ .setDefinition() ] on the subsclass\'s constructor', function () {
+        it('should set another [ .setDefinition() ] on the subclass\'s constructor', function () {
             expect(TestClass).to.have.property('setDefinition');
             expect(TestClass.setDefinition).to.have.be.a('function');
         });
 
-        it('should set a static [ .registerPlugin() ] on the subsclass\'s constructor', function () {
+        it('should set a static [ .registerPlugin() ] on the subclass\'s constructor', function () {
             expect(TestClass).to.have.property('registerPlugin');
             expect(TestClass.registerPlugin).to.have.be.a('function');
         });
@@ -189,14 +189,14 @@ describe('DataObject', function () {
                 expect(SubSubTestClass).to.have.property('definition');
             });
 
-            it('should set another [ .setDefinition() ] on the subsclass\'s constructor', function () {
+            it('should set another [ .setDefinition() ] on the subclass\'s constructor', function () {
                 expect(SubTestClass).to.have.property('setDefinition');
                 expect(SubTestClass.setDefinition).to.have.be.a('function');
                 expect(SubSubTestClass).to.have.property('setDefinition');
                 expect(SubSubTestClass.setDefinition).to.have.be.a('function');
             });
 
-            it('should set a static [ .registerPlugin() ] on the subsclass\'s constructor', function () {
+            it('should set a static [ .registerPlugin() ] on the subclass\'s constructor', function () {
                 expect(SubTestClass).to.have.property('registerPlugin');
                 expect(SubTestClass.registerPlugin).to.have.be.a('function');
                 expect(SubSubTestClass).to.have.property('registerPlugin');
@@ -229,12 +229,13 @@ describe('DataObject', function () {
         });
 
         describe('.initialize()', function () {
-            it('should throw an exception', function () {
+            it('should throw an error', function () {
                 try {
                     testObject.initialize();
                     expect(false, 'initialize() did not throw an error.').to.be.true;
                 } catch (error) {
-                    expect(error, error.message).to.equal('Error: DataObject.prototype.initialize(): The subclass ' +
+                    expect(error).to.be.an.instanceof(Error);
+                    expect(error.message).to.equal('Error: DataObject.prototype.initialize(): The subclass ' +
                     'must extend DataObject using the DataObject.setDefinition() function.');
                 }
             });
@@ -290,20 +291,37 @@ describe('DataObject', function () {
             });
         });
 
-//        describe('artifacts', function () {
-//            var descriptor;
-//            beforeEach(function () {
-//                testObject = new TestClass().initialize();
-//            });
-//            describe('stringProperty', function () {
-//                beforeEach(function () {
-//                    descriptor = Object.getOwnPropertyDescriptor(testObject, 'name');
-//                });
-//
-//                it('should have a getter', function () {
-//                    expect(descriptor.get).to.be.a('function');
-//                });
-//            });
-//        });
+        describe('static #util wrapper function', function () {
+            var util;
+            beforeEach(function () {
+                testObject = new TestClass().initialize();
+                util = testObject['#util'];
+                sinon.stub(util, 'isPersistencePending');
+                sinon.stub(util, 'whenFullyPersisted');
+            });
+
+            describe('.isPersistencePending', function () {
+                it('should wrap .#util.isPersistencePending', function () {
+                    util.isPersistencePending.returns('should be a boolean');
+                    expect(DataObject.isPersistencePending(testObject)).to.equal('should be a boolean');
+                    expect(util.isPersistencePending.called).to.be.true;
+                });
+            });
+
+            describe('.whenFullyPersisted', function () {
+                it('should wrap .#util.whenFullyPersisted', function () {
+                    util.whenFullyPersisted.returns('should be a promise');
+                    expect(DataObject.whenFullyPersisted(testObject)).to.equal('should be a promise');
+                    expect(util.whenFullyPersisted.called).to.be.true;
+                });
+            });
+        });
+    });
+
+    describe('out of the box plugins', function () {
+        it('should provide a [ type ] plugin named [ string ]', function () {
+            expect(DataObject.prototype.plugins.type).to.have.property('string');
+        });
     });
 });
+

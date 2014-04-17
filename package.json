@@ -8,6 +8,9 @@
     },
     "author": "John Johnson II",
     "license": "BSD-2-Clause",
+    "dependencies" : {
+        "q" : "latest"
+    },
     "devDependencies" : {
         "gulp" : "latest",
         "gulp-util" : "latest",
@@ -15,6 +18,7 @@
         "gulp-mocha" : "latest",
         "gulp-istanbul" : "latest",
         "chai" : "latest",
-        "sinon" : "latest"
+        "sinon" : "latest",
+        "ejdb" : "latest"
     }
 }

@@ -1,18 +1,13 @@
 'use strict';
 
-var U = '#util';
+var constants = require('./internal/constants'),
+U = constants.U;
 
 function DataObject () {}
 
-DataObject.Transaction = require('./internal/Transaction');
+DataObject.Database = require('./internal/Database');
 
 DataObject.Utility = require('./internal/Utility');
-Object.defineProperty(DataObject.Utility, 'U', {
-    value : U,
-    writable : false,
-    enumerable : false,
-    configurable : false
-});
 
 Object.defineProperty(DataObject.prototype, 'plugins', {
     value: {},
@@ -64,17 +59,25 @@ DataObject.setDefinition = function (Subclass, definition) {
     _setDefinition(DataObject, Subclass, definition);
 };
 
+DataObject.isPersistencePending = function (obj) {
+    return obj[U].isPersistencePending();
+};
+
+DataObject.whenFullyPersisted = function (obj) {
+    return obj[U].whenFullyPersisted();
+};
+
 DataObject.prototype.initialize = function (db) {
     var config = {
         db : db,
         definition : this.constructor.definition
     };
     if (!config.definition) {
-        throw 'Error: DataObject.prototype.initialize(): The subclass must extend DataObject using the ' +
-        'DataObject.setDefinition() function.';
+        throw new Error('Error: DataObject.prototype.initialize(): The subclass must extend DataObject using the DataObject.setDefinition() function.');
     }
-    new DataObject.Utility(this, config);
-    return this;
+    return new DataObject.Utility(this, config).obj;
 };
+
+DataObject.registerPlugin(require('./plugins/type/string'));
 
 module.exports = DataObject;

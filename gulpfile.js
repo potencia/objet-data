@@ -99,6 +99,6 @@ gulp.task('gen', function () {
         .on('error', function (error) {
             gutil.log(error.message);
         })
-        .pipe(cat())
+        .pipe(cat());
     });
 });

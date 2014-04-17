@@ -1,10 +1,16 @@
 'use strict';
 
+var constants = require('./constants'),
+Q = require('q');
+
 function Utility (obj, config) {
     var self = this;
     self.data = {};
     self.obj = obj;
-    Object.defineProperty(self.obj, Utility.U, {
+    self.toPersist = [];
+    self.persistenceErrors = [];
+    self.deferUntilPersistenceCompletes = [];
+    Object.defineProperty(self.obj, constants.U, {
         value : self,
         writable : false,
         enumerable : false,
@@ -25,6 +31,8 @@ function Utility (obj, config) {
         }
     }
 }
+
+Utility.Transaction = require('./Transaction');
 
 Object.defineProperty(Utility, 'pluginDefaults', {
     value : {},
@@ -69,12 +77,13 @@ function _getPluginProperty(obj, type, name, property, state) {
     if (!valueDescriptor) {
         if (currentState.attemptDefaults) {
             if (!currentState.foundType) {
-                throw 'DataObject.Utility.prototype.getPluginProperty(): The type [ ' + type + ' ] is not valid.';
+                throw new Error('DataObject.Utility.prototype.getPluginProperty(): The type [ ' + type + ' ] is not valid.');
             }
             if (!currentState.foundPlugin) {
-                throw 'DataObject.Utility.prototype.getPluginProperty(): Could not find a plugin [ ' + name + ' ] of type [ ' + type + ' ].';
+                throw new Error('DataObject.Utility.prototype.getPluginProperty(): Could not find a plugin [ ' + name + ' ] of type [ ' + type + ' ].');
             }
-            throw 'DataObject.Utility.prototype.getPluginProperty(): Plugin [ ' + name + ' ] of type [ ' + type + ' ] has no property [ ' + property + ' ].';
+            throw new Error('DataObject.Utility.prototype.getPluginProperty(): Plugin [ ' + name + ' ] of type [ ' + type + ' ] has no property [ ' +
+            property + ' ].');
         } else {
             prototype = Object.getPrototypeOf(obj);
             if (prototype) {
@@ -102,9 +111,74 @@ Utility.pluginDefaults.type.createAccessor = function (util, obj, key) {
             return util.data[key];
         },
         set : function (value) {
-            util.data[key] = value;
+            var tx = util.getTransaction();
+            tx.data[key] = value;
+            tx.commit();
+            //util.data[key] = value;
         }
     });
+};
+
+Utility.prototype.getTransaction = function () {
+    return new Utility.Transaction(this.obj);
+};
+
+Utility.prototype.commitTransaction = function (tx) {
+    var self = this, todo = {
+        tx : tx,
+        deferred : Q.defer()
+    }, leftToPersist = self.toPersist.length;
+    self.toPersist.push(todo);
+
+    function next () {
+        if (self.toPersist.length > 0) {
+            var current = self.toPersist[0];
+            self.db.persist(current.tx)
+            .then(function () {
+                current.deferred.resolve();
+            }, function (reason) {
+                self.persistenceErrors.push(reason);
+                current.deferred.reject(reason);
+            })
+            .done(function () {
+                self.toPersist.shift();
+                setImmediate(next);
+            });
+        } else {
+            self.whenFullyPersisted();
+        }
+    }
+    if (leftToPersist === 0) {
+        next();
+    }
+
+    return todo.deferred.promise;
+};
+
+Utility.prototype.isPersistencePending = function () {
+    return !!this.toPersist.length;
+};
+
+Utility.prototype.whenFullyPersisted = function () {
+    var errors, toNotify, deferred = Q.defer();
+    this.deferUntilPersistenceCompletes.push(deferred);
+    if (!this.isPersistencePending()) {
+        if (this.persistenceErrors.length) {
+            errors = [];
+            while (this.persistenceErrors.length) {
+                errors.push(this.persistenceErrors.shift());
+            }
+        }
+        while (this.deferUntilPersistenceCompletes.length) {
+            toNotify = this.deferUntilPersistenceCompletes.shift();
+            if (errors) {
+                toNotify.reject(errors);
+            } else {
+                toNotify.resolve();
+            }
+        }
+    }
+    return deferred.promise;
 };
 
 module.exports = Utility;
