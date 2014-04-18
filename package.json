@@ -3,9 +3,17 @@
     "version": "0.0.1",
     "description": "Auto-persisting data objects",
     "author": "John P. Johnson II",
-    "license": "MIT",
+    "license": {
+        "type" : "MIT",
+        "url" : "https://github.com/potencia/objet-data/raw/master/LICENSE"
+    },
     "keywords" : ["document", "model", "schema", "database", "odm", "data", "datastore", "query", "nosql", "orm", "db", "ejdb"],
-    "files" : ["README.md", "LICENSE", "gulpfile.js", "src"],
+    "homepage" : "https://github.com/potencia/objet-data",
+    "repository" : {
+        "type" : "git",
+        "url" : "https://github.com/potencia/objet-data.git"
+    },
+    "files" : ["README.md", "LICENSE", "gulpfile.js", "src", "build"],
     "main" : "src/main/js/ObjetDAta",
     "scripts": {
         "test": "gulp test"
