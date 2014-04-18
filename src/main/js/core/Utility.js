@@ -77,12 +77,12 @@ function _getPluginProperty(obj, type, name, property, state) {
     if (!valueDescriptor) {
         if (currentState.attemptDefaults) {
             if (!currentState.foundType) {
-                throw new Error('DataObject.Utility.prototype.getPluginProperty(): The type [ ' + type + ' ] is not valid.');
+                throw new Error('ObjetDAta.Utility.prototype.getPluginProperty(): The type [ ' + type + ' ] is not valid.');
             }
             if (!currentState.foundPlugin) {
-                throw new Error('DataObject.Utility.prototype.getPluginProperty(): Could not find a plugin [ ' + name + ' ] of type [ ' + type + ' ].');
+                throw new Error('ObjetDAta.Utility.prototype.getPluginProperty(): Could not find a plugin [ ' + name + ' ] of type [ ' + type + ' ].');
             }
-            throw new Error('DataObject.Utility.prototype.getPluginProperty(): Plugin [ ' + name + ' ] of type [ ' + type + ' ] has no property [ ' +
+            throw new Error('ObjetDAta.Utility.prototype.getPluginProperty(): Plugin [ ' + name + ' ] of type [ ' + type + ' ] has no property [ ' +
             property + ' ].');
         } else {
             prototype = Object.getPrototypeOf(obj);

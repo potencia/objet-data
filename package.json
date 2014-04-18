@@ -1,24 +1,33 @@
 {
-    "name": "data-object",
+    "name": "objet-data",
     "version": "0.0.1",
-    "description": "ODM Layer",
-    "main" : "src/main/js/DataObject",
+    "description": "Auto-persisting data objects",
+    "author": "John P. Johnson II",
+    "license": "MIT",
+    "keywords" : ["document", "model", "schema", "database", "odm", "data", "datastore", "query", "nosql", "orm", "db", "ejdb"],
+    "files" : ["README.md", "LICENSE", "gulpfile.js", "src"],
+    "main" : "src/main/js/ObjetDAta",
     "scripts": {
         "test": "gulp test"
     },
-    "author": "John Johnson II",
-    "license": "BSD-2-Clause",
+    "engines": {
+        "node": ">=0.6.0"
+    },
     "dependencies" : {
-        "q" : "latest"
+        "q" : "1.0.1"
     },
     "devDependencies" : {
-        "gulp" : "latest",
-        "gulp-util" : "latest",
-        "gulp-cat" : "latest",
-        "gulp-mocha" : "latest",
-        "gulp-istanbul" : "latest",
-        "chai" : "latest",
-        "sinon" : "latest",
-        "ejdb" : "latest"
+        "gulp" : "3.6.1",
+        "gulp-util" : "2.2.14",
+        "gulp-clean" : "0.2.4",
+        "gulp-mocha" : "0.4.1",
+        "gulp-istanbul" : "0.1.1",
+        "gulp-istanbul-enforcer" : "1.0.2",
+        "gulp-jscs" : "0.4.2",
+        "gulp-jshint" : "1.5.3",
+        "jshint-stylish" : "0.1.5",
+        "chai" : "1.9.1",
+        "sinon" : "1.9.1",
+        "ejdb" : "1.1.25"
     }
 }

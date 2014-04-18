@@ -3,13 +3,13 @@
 var expect = require('chai').expect,
 sinon = require('sinon'),
 Q = require('q'),
-DataObject = require('../../../..');
+ObjetDAta = require('../../../../');
 
 function ChildClass () {}
 
 function GrandchildClass () {}
 
-describe('DataObject.Utility', function () {
+describe('ObjetDAta.Utility', function () {
     var obj, util, tx;
 
     beforeEach(function () {
@@ -17,12 +17,12 @@ describe('DataObject.Utility', function () {
     });
 
     it('should have the [ Transaction ] property', function () {
-        expect(DataObject.Utility).to.have.property('Transaction');
-        expect(DataObject.Utility.Transaction).to.be.a('function');
+        expect(ObjetDAta.Utility).to.have.property('Transaction');
+        expect(ObjetDAta.Utility.Transaction).to.be.a('function');
     });
 
     it('should have the special [ pluginDefaults ] property', function () {
-        var descriptor = Object.getOwnPropertyDescriptor(DataObject.Utility, 'pluginDefaults');
+        var descriptor = Object.getOwnPropertyDescriptor(ObjetDAta.Utility, 'pluginDefaults');
         expect(descriptor.value).to.be.an('object');
         expect(descriptor.writable).to.be.false;
         expect(descriptor.enumerable).to.be.false;
@@ -31,32 +31,32 @@ describe('DataObject.Utility', function () {
 
     describe('constructor', function () {
         it('should create the [ toPersist ] property as an empty array', function () {
-            util = new DataObject.Utility({}, {});
+            util = new ObjetDAta.Utility({}, {});
             expect(util).to.have.property('toPersist');
             expect(util.toPersist).to.deep.equal([]);
         });
 
         it('should create the [ persistenceErrors ] property as an empty array', function () {
-            util = new DataObject.Utility({}, {});
+            util = new ObjetDAta.Utility({}, {});
             expect(util).to.have.property('persistenceErrors');
             expect(util.persistenceErrors).to.deep.equal([]);
         });
 
         it('should create the [ deferUntilPersistenceCompletes ] property as an empty array', function () {
-            util = new DataObject.Utility({}, {});
+            util = new ObjetDAta.Utility({}, {});
             expect(util).to.have.property('deferUntilPersistenceCompletes');
             expect(util.deferUntilPersistenceCompletes).to.deep.equal([]);
         });
 
         it('should set the [ .obj ] property', function () {
-            util = new DataObject.Utility({specialValue : 'very very special'}, {});
+            util = new ObjetDAta.Utility({specialValue : 'very very special'}, {});
             expect(util).to.have.property('obj');
             expect(util.obj.specialValue).to.equal('very very special');
         });
 
         it('should set itself as the special [ #util ] property on [ .obj ]', function () {
             expect(Object.getOwnPropertyDescriptor(obj, '#util')).to.be.undefined;
-            util = new DataObject.Utility(obj, {db : {name : 'a database'}});
+            util = new ObjetDAta.Utility(obj, {db : {name : 'a database'}});
             expect(Object.getOwnPropertyDescriptor(obj, '#util')).to.deep.equal({
                 value : util,
                 writable : false,
@@ -66,28 +66,28 @@ describe('DataObject.Utility', function () {
         });
 
         it('should set the [ .db ] property', function () {
-            util = new DataObject.Utility(obj, {db : {foo : true}});
+            util = new ObjetDAta.Utility(obj, {db : {foo : true}});
             expect(util).to.have.property('db');
             expect(util.db).to.deep.equal({foo : true});
         });
 
         it('should set the [ .collection ] property', function () {
-            util = new DataObject.Utility(obj, {definition : {collection : 'the collection name'}});
+            util = new ObjetDAta.Utility(obj, {definition : {collection : 'the collection name'}});
             expect(util).to.have.property('collection');
             expect(util.collection).to.equal('the collection name');
         });
 
         it('should set the [ .properties ] property', function () {
-            util = new DataObject.Utility(obj, {definition : {properties : {'name' : {type : 'string'}}}});
+            util = new ObjetDAta.Utility(obj, {definition : {properties : {name : {type : 'string'}}}});
             expect(util).to.have.property('properties');
             expect(util.properties).to.have.property('name');
         });
 
         it('should create accessors for all appropriate properties', function () {
             var descriptor;
-            util = new DataObject.Utility(obj, {definition : {properties : {
-                'name' : {type : 'string'},
-                'age' : {type : 'number'}
+            util = new ObjetDAta.Utility(obj, {definition : {properties : {
+                name : {type : 'string'},
+                age : {type : 'number'}
             }}});
             descriptor = Object.getOwnPropertyDescriptor(obj, 'name');
             expect(descriptor.get).to.be.a('function');
@@ -101,25 +101,25 @@ describe('DataObject.Utility', function () {
     describe('.getPluginProperty()', function () {
         var realPluginDefaults;
         beforeEach(function () {
-            Object.keys(DataObject.prototype.plugins).forEach(function (key) {
-                delete DataObject.prototype.plugins[key];
+            Object.keys(ObjetDAta.prototype.plugins).forEach(function (key) {
+                delete ObjetDAta.prototype.plugins[key];
             });
             realPluginDefaults = {};
-            Object.keys(DataObject.Utility.pluginDefaults).forEach(function (key) {
-                realPluginDefaults[key] = DataObject.Utility.pluginDefaults[key];
-                delete DataObject.Utility.pluginDefaults[key];
+            Object.keys(ObjetDAta.Utility.pluginDefaults).forEach(function (key) {
+                realPluginDefaults[key] = ObjetDAta.Utility.pluginDefaults[key];
+                delete ObjetDAta.Utility.pluginDefaults[key];
             });
-            DataObject.setDefinition(ChildClass, {});
+            ObjetDAta.setDefinition(ChildClass, {});
             ChildClass.setDefinition(GrandchildClass, {});
             obj = new GrandchildClass().initialize();
             util = obj['#util'];
         });
         afterEach(function () {
-            Object.keys(DataObject.Utility.pluginDefaults).forEach(function (key) {
-                delete DataObject.Utility.pluginDefaults[key];
+            Object.keys(ObjetDAta.Utility.pluginDefaults).forEach(function (key) {
+                delete ObjetDAta.Utility.pluginDefaults[key];
             });
             Object.keys(realPluginDefaults).forEach(function (key) {
-                DataObject.Utility.pluginDefaults[key] = realPluginDefaults[key];
+                ObjetDAta.Utility.pluginDefaults[key] = realPluginDefaults[key];
             });
         });
 
@@ -167,10 +167,10 @@ describe('DataObject.Utility', function () {
                 this.name = 'plugin';
                 this.answer = 42;
             }
-            DataObject.registerPlugin(RootPluginOne);
-            DataObject.registerPlugin(RootPluginTwo);
-            DataObject.registerPlugin(RootPluginThree);
-            DataObject.registerPlugin(RootPluginFour);
+            ObjetDAta.registerPlugin(RootPluginOne);
+            ObjetDAta.registerPlugin(RootPluginTwo);
+            ObjetDAta.registerPlugin(RootPluginThree);
+            ObjetDAta.registerPlugin(RootPluginFour);
             ChildClass.registerPlugin(ChildPlugin);
             GrandchildClass.registerPlugin(GrandchildPlugin);
             expect(util.getPluginProperty('root', 'plugin', 'hoo')).to.equal('rah');
@@ -181,7 +181,7 @@ describe('DataObject.Utility', function () {
         });
 
         it('should retrieve the property from the default if possible and necessary', function () {
-            DataObject.Utility.pluginDefaults.restaurant = {
+            ObjetDAta.Utility.pluginDefaults.restaurant = {
                 universe : 'end'
             };
             expect(util.getPluginProperty('restaurant', 'anyPlugin', 'universe')).to.equal('end');
@@ -193,7 +193,7 @@ describe('DataObject.Utility', function () {
                 expect(true, 'Exception should have been thrown').to.be.false;
             } catch (error) {
                 expect(error).to.be.an.instanceOf(Error);
-                expect(error.message).to.equal('DataObject.Utility.prototype.getPluginProperty(): The type [ typeNotThere ] is not valid.');
+                expect(error.message).to.equal('ObjetDAta.Utility.prototype.getPluginProperty(): The type [ typeNotThere ] is not valid.');
             }
         });
 
@@ -202,13 +202,13 @@ describe('DataObject.Utility', function () {
                 this.type = 'test';
                 this.name = 'something';
             }
-            DataObject.registerPlugin(Plugin);
+            ObjetDAta.registerPlugin(Plugin);
             try {
                 util.getPluginProperty('test', 'anything', 'property');
                 expect(true, 'Exception should have been thrown').to.be.false;
             } catch (error) {
                 expect(error).to.be.an.instanceOf(Error);
-                expect(error.message).to.equal('DataObject.Utility.prototype.getPluginProperty(): Could not find a plugin [ anything ] of type [ test ].');
+                expect(error.message).to.equal('ObjetDAta.Utility.prototype.getPluginProperty(): Could not find a plugin [ anything ] of type [ test ].');
             }
         });
 
@@ -217,13 +217,13 @@ describe('DataObject.Utility', function () {
                 this.type = 'test';
                 this.name = 'something';
             }
-            DataObject.registerPlugin(Plugin);
+            ObjetDAta.registerPlugin(Plugin);
             try {
                 util.getPluginProperty('test', 'something', 'whereAreYou');
                 expect(true, 'Exception should have been thrown').to.be.false;
             } catch (error) {
                 expect(error).to.be.an.instanceOf(Error);
-                expect(error.message).to.equal('DataObject.Utility.prototype.getPluginProperty(): Plugin [ something ] of type [ test ] has no property ' +
+                expect(error.message).to.equal('ObjetDAta.Utility.prototype.getPluginProperty(): Plugin [ something ] of type [ test ] has no property ' +
                 '[ whereAreYou ].');
             }
         });
@@ -231,7 +231,7 @@ describe('DataObject.Utility', function () {
 
     describe('type plugin defaults', function () {
         beforeEach(function () {
-            DataObject.setDefinition(ChildClass, {});
+            ObjetDAta.setDefinition(ChildClass, {});
             util = new ChildClass().initialize()['#util'];
         });
 
@@ -286,12 +286,12 @@ describe('DataObject.Utility', function () {
     describe('.getTransaction', function () {
         beforeEach(function () {
             obj = {someData : 'value'};
-            util = new DataObject.Utility(obj, {});
+            util = new ObjetDAta.Utility(obj, {});
         });
 
-        it('should return a DataObject.Transaction object with this set on it', function () {
+        it('should return a ObjetDAta.Transaction object with this set on it', function () {
             tx = util.getTransaction();
-            expect(tx).to.be.an.instanceof(DataObject.Utility.Transaction);
+            expect(tx).to.be.an.instanceof(ObjetDAta.Utility.Transaction);
             expect(tx.obj).to.equal(obj);
         });
     });
@@ -300,9 +300,9 @@ describe('DataObject.Utility', function () {
         var persistDeferred, promise;
         beforeEach(function () {
             persistDeferred = Q.defer();
-            util = new DataObject.Utility(obj, {
+            util = new ObjetDAta.Utility(obj, {
                 db : {
-                    persist: sinon.stub().returns(persistDeferred.promise)
+                    persist : sinon.stub().returns(persistDeferred.promise)
                 }
             });
             tx = util.getTransaction();
@@ -437,9 +437,9 @@ describe('DataObject.Utility', function () {
 
     describe('.isPersistencePending', function () {
         beforeEach(function () {
-            util = new DataObject.Utility(obj, {
+            util = new ObjetDAta.Utility(obj, {
                 db : {
-                    persist: sinon.stub().returns(Q.defer().promise)
+                    persist : sinon.stub().returns(Q.defer().promise)
                 }
             });
         });
@@ -465,9 +465,9 @@ describe('DataObject.Utility', function () {
         var persistDeferred;
         beforeEach(function () {
             persistDeferred = Q.defer();
-            util = new DataObject.Utility(obj, {
+            util = new ObjetDAta.Utility(obj, {
                 db : {
-                    persist: sinon.stub().returns(persistDeferred.promise)
+                    persist : sinon.stub().returns(persistDeferred.promise)
                 }
             });
         });

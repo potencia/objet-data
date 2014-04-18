@@ -1,8 +1,8 @@
 'use strict';
 
-var constants = require('../../main/js/internal/constants'),
+var constants = require('../../main/js/core/constants'),
 U = constants.U,
-DataObject = require('../../..'),
+ObjetDAta = require('../../..'),
 EJDBPlugin = require('../../main/js/plugins/db/ejdb');
 
 function TestTools () {}
@@ -10,7 +10,7 @@ function TestTools () {}
 TestTools.prototype.createTestObject = function (db, definition) {
     var obj;
     function TestClass () {}
-    DataObject.setDefinition(TestClass, definition);
+    ObjetDAta.setDefinition(TestClass, definition);
     obj = new TestClass();
     obj.plugins.db = {
         ejdb : new EJDBPlugin()

@@ -1,0 +1,29 @@
+{
+    "camelcase" : true,
+    "curly" : true,
+    "eqeqeq" : true,
+    "forin" : true,
+    "immed" : true,
+    "latedef" : true,
+    "noarg" : true,
+    "noempty" : true,
+    "nonew" : true,
+    "newcap" : false,
+    "undef" : true,
+    "unused" : true,
+    "strict" : true,
+    "trailing" : true,
+    "expr" : true,
+    "browser" : true,
+    "node" : true,
+    "onevar" : true,
+    "globals" : {
+        "setImmediate" : false,
+        "describe" : false,
+        "it" : false,
+        "before" : false,
+        "after" : false,
+        "beforeEach" : false,
+        "afterEach" : false
+    }
+}

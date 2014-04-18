@@ -3,9 +3,9 @@
 var expect = require('chai').expect,
 sinon = require('sinon'),
 Q = require('q'),
-DataObject = require('../../../..');
+ObjetDAta = require('../../../../');
 
-describe('DataObject.Utility.Transaction', function () {
+describe('ObjetDAta.Utility.Transaction', function () {
     var tx, obj, db;
     beforeEach(function () {
         obj = {
@@ -14,7 +14,7 @@ describe('DataObject.Utility.Transaction', function () {
         db = {
             name : 'testDatabase'
         };
-        tx = new DataObject.Utility.Transaction(obj, db);
+        tx = new ObjetDAta.Utility.Transaction(obj, db);
     });
 
     describe('constructor', function () {
@@ -90,7 +90,7 @@ firstSd.name = 'Arthur'; // persistence is initiated since id is not set, insert
 
 console.log(firstSd.name); // Could output undefined or 'Arthur' - non-deterministic
 
-DataObject.whenFullyPersisted(sd)
+ObjetDAta.whenFullyPersisted(sd)
 .then(function (result) { // result is the same as firstSd. Provided for convenience
     console.log(firstSd.name); // will output 'Arthur'
     console.log(firstSd.id); // will output the same database generated id (same object)
@@ -111,7 +111,7 @@ sd.name = 'John'; // Starts the storing process
 sd.name = 'John Johnson II'; // Queues up to store
 console.log(sd.name); // Could output undefined, 'John', or 'John Johnson II' - non-deterministic
 
-DataObject.whenFullyPersisted(sd)
+ObjetDAta.whenFullyPersisted(sd)
 .then(function (result) { // result is the same as sd. Provided for convenience
     console.log(sd.name); // will output 'John Johnson II'
 },function (reason) {
@@ -127,19 +127,19 @@ newSd.id = sd.id;
 // and the id is set then loading is initiated. Failure to load is considered an error.
 console.log(newSd.name); // will output undefined, but start the loading process
 
-DataObject.whenFullyLoaded(newSd) // will start the loading process unless it is already started
+ObjetDAta.whenFullyLoaded(newSd) // will start the loading process unless it is already started
 .then(function (result) { // result is the same as newSd. Provided for convenience
     console.log(newSd.name); // will output 'John Johnson II'
 }, function (reason) {
     console.log(reason); // will output the latest set of loading errors for newSd
 });
 
-DataObject.loadFrom(planOlObject, newSd); // returns true / false
+ObjetDAta.loadFrom(planOlObject, newSd); // returns true / false
 // Attempts to put the data in plainOlObject into newSd. This is useful for when the database is
-// queried directly for data and then some or all of the results are wanted in DataObject objects
+// queried directly for data and then some or all of the results are wanted in ObjetDAta objects
 
 //--- (cru)D ---
-DataObject.remove(sd)
+ObjetDAta.remove(sd)
 .then(function () { // nothing is passed on resolving
     console.log('success'); //the object is removed
 }, function (reason) {
@@ -148,7 +148,7 @@ DataObject.remove(sd)
 console.log(sd.id); // will output undefined
 
 //--- transactions ---
-DataObject.performInTransaction(function () {
+ObjetDAta.performInTransaction(function () {
     firstSd.name = 'Arthur Dent';
     sd.name = 'Arthur Dent'; // Multiple objects can be part of a transaction
     sd.age = sd.age + 3; // if data has not been changed in the transaction it is retrieved from
@@ -170,21 +170,21 @@ SpecialData.load(db, id); // will start loading the data using the id and return
 // shorthand for:
 //    var obj = new SpecialData(),initialize(db);
 //    obj.id = id;
-//    DataObject.onLoaded(obj); // returns a promise
+//    ObjetDAta.onLoaded(obj); // returns a promise
 
 // objects can be queried for status regarding persisting
-DataObject.isPersistencePending(sd); // returns immediate true or false
+ObjetDAta.isPersistencePending(sd); // returns immediate true or false
 
 // objects can be queried for status regarding loading
-DataObject.isLoaded(sd); // returns immediate true or false
+ObjetDAta.isLoaded(sd); // returns immediate true or false
 
-DataObject.whenFullyPersisted
+ObjetDAta.whenFullyPersisted
 - when any persistence operation fails, it records its error
 - returns a promise
   - resolves when all asynchronous persistence operations are complete
   - rejects if there are any previously recorded errors
 
-DataObject.whenFullyLoaded
+ObjetDAta.whenFullyLoaded
 - returns a promise
   - when the object is already loaded this resolves immediately
   - when the object is not loaded and loading is not in progress, starts the loading process

@@ -18,7 +18,7 @@ describe('db plugin: ejdb', function () {
         expect(plugin.close).to.be.a('function');
     });
 
-    describe('.open()', function() {
+    describe('.open()', function () {
         beforeEach(function () {
             sinon.stub(EJDB, 'open');
             db = {
@@ -82,7 +82,7 @@ describe('db plugin: ejdb', function () {
                 expect(EJDB.open.lastCall.args[1]).to.equal(EJDB.JBOTRUNC);
                 return plugin.open(withOpenMode({
                     reader : false,
-                    writer: true,
+                    writer : true,
                     create : 'foo',
                     truncate : true
                 }));
@@ -262,7 +262,7 @@ describe('db plugin: ejdb', function () {
         });
     });
 
-    describe('.close()', function() {
+    describe('.close()', function () {
         beforeEach(function () {
             jb = {
                 close : sinon.stub()

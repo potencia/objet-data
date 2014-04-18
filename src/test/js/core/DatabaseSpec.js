@@ -3,9 +3,9 @@
 var expect = require('chai').expect,
 sinon = require('sinon'),
 Q = require('q'),
-DataObject = require('../../../..');
+ObjetDAta = require('../../../../');
 
-describe('DataObject.Database', function () {
+describe('ObjetDAta.Database', function () {
     var db, util, pluginOpen, openDeferred;
 
     describe('constructor', function () {
@@ -18,7 +18,7 @@ describe('DataObject.Database', function () {
                     truncate : true
                 }
             };
-            db = new DataObject.Database('mongol', conf);
+            db = new ObjetDAta.Database('mongol', conf);
             conf.options.writer = false;
             conf.location = 'some/other/location';
         });
@@ -58,7 +58,7 @@ describe('DataObject.Database', function () {
 
     describe('.isOpen', function () {
         beforeEach(function () {
-            db = new DataObject.Database('', {});
+            db = new ObjetDAta.Database('', {});
         });
 
         it('should be a readonly accessor on the prototype', function () {
@@ -81,7 +81,7 @@ describe('DataObject.Database', function () {
 
     describe('.lastError', function () {
         beforeEach(function () {
-            db = new DataObject.Database('', {});
+            db = new ObjetDAta.Database('', {});
         });
 
         it('should be a readonly accessor on the prototype', function () {
@@ -105,7 +105,7 @@ describe('DataObject.Database', function () {
     describe('lifecycle', function () {
         beforeEach(function () {
             openDeferred = Q.defer();
-            db = new DataObject.Database('mongol', {});
+            db = new ObjetDAta.Database('mongol', {});
             util = {
                 getPluginProperty : sinon.stub()
             };
@@ -253,7 +253,7 @@ describe('DataObject.Database', function () {
                         expect(util.getPluginProperty.callCount).to.equal(0);
                         expect(results).to.deep.equal({
                             code : 'NEVER_OPENED',
-                            function : 'DataObject.Database.prototype.close()',
+                            function : 'ObjetDAta.Database.prototype.close()',
                             message : 'This database has never been opened.'
                         });
                     })
@@ -271,7 +271,7 @@ describe('DataObject.Database', function () {
                     openDeferred.resolve({message : 'You are now open for business.'});
                 });
 
-                it('should execute the previously fetched [ close() ] function', function() {
+                it('should execute the previously fetched [ close() ] function', function () {
                     var promise = db.close();
                     expect(pluginClose.callCount).to.equal(1);
                     expect(pluginClose.firstCall.args).to.deep.equal([db]);
@@ -335,8 +335,7 @@ describe('DataObject.Database', function () {
                     closeDeferred.resolve();
                 });
 
-                it('should cause #state.openResults, #state.closeResults and #state.util to be undefined after failed closing of the database',
-                function (done) {
+                it('should cause .openResults, .closeResults and .util on #state to be undefined after failed closing of the database', function (done) {
                     db['#state'].openResults = 'open';
                     db['#state'].closeResults = 'close';
                     db.close()
@@ -390,7 +389,7 @@ describe('DataObject.Database', function () {
         beforeEach(function () {
             openDeferred = Q.defer();
             persistDeferred = Q.defer();
-            db = new DataObject.Database('mongol', {});
+            db = new ObjetDAta.Database('mongol', {});
             util = {
                 getPluginProperty : sinon.stub()
             };

@@ -2,10 +2,13 @@
 
 var gulp = require('gulp'),
 gutil = require('gulp-util'),
+clean = require('gulp-clean'),
+fs = require('fs'),
 mocha = require('gulp-mocha'),
 istanbul = require('gulp-istanbul'),
-bddGen = require('bdd-gen').forGulp,
-cat = require('gulp-cat'),
+istanbulEnforcer = require('gulp-istanbul-enforcer'),
+jshint = require('gulp-jshint'),
+jscs = require('gulp-jscs'),
 files = {
     main : {
         js : {
@@ -14,15 +17,46 @@ files = {
     },
     test : {
         js : {
+            all : 'src/test/js/**/*.js',
             spec : {
                 all : 'src/test/js/**/*Spec.js'
             }
         },
         gen : 'src/test/gen'
+    },
+    config : {
+        build : {
+            jshintrc : {
+                main : 'build/.jshintrc',
+                test : 'build/.jshintrc-test'
+            },
+            jscsrc : 'build/.jscsrc'
+        }
+    },
+    target : {
+        dir : 'target',
+        coverage : {
+            dir : 'target/coverage'
+        },
+        db : {
+            dir : 'target/db'
+        }
     }
 };
 
-gulp.task('test', function () {
+gulp.task('clean', function () {
+    return gulp.src(files.target.dir, {read : false})
+    .pipe(clean());
+});
+
+gulp.task('prepare', function (done) {
+    function makeDbDir () { fs.mkdir(files.target.db.dir, done); }
+    function checkTargetDir (exists) { if (exists) { makeDbDir(); } else { fs.mkdir(files.target.dir, makeDbDir); } }
+    function checkDbDir (exists) { if (exists) { done(); } else { fs.exists(files.target.dir, checkTargetDir); } }
+    fs.exists(files.target.db.dir, checkDbDir);
+});
+
+gulp.task('test', ['prepare'], function () {
     gulp.src(files.test.js.spec.all)
     .pipe(mocha({reporter : gutil.env.reporter || 'min'}))
     .on('error', function (error) {
@@ -30,7 +64,11 @@ gulp.task('test', function () {
     });
 });
 
-gulp.task('coverage', function (done) {
+gulp.task('watch.test', function () {
+    gulp.watch([files.main.js.all, files.test.js.spec.all], ['test']);
+});
+
+gulp.task('coverage', ['prepare'], function (done) {
     gulp.src(files.main.js.all)
     .pipe(istanbul())
     .on('end', function () {
@@ -39,66 +77,46 @@ gulp.task('coverage', function (done) {
         .on('error', function (error) {
             gutil.log(gutil.colors.red(error.message));
         })
-        .pipe(istanbul.writeReports('./target/coverage'))
+        .pipe(istanbul.writeReports(files.target.coverage.dir))
         .on('end', done);
     });
-});
-
-gulp.task('watch.test', function () {
-    gulp.watch([files.main.js.all, files.test.js.spec.all], ['test']);
 });
 
 gulp.task('watch.coverage', function () {
     gulp.watch([files.main.js.all, files.test.js.spec.all], ['coverage']);
 });
 
-function setupBddGen (bddGen) {
-    var mapping = {
-        t : {txt : '.to'},
-        b : {txt : '.be'},
-        u : {txt : '.true'},
-        f : {txt : '.false'},
-        h : {txt : '.have'},
-        a : {txt : '.a', val : function (out, val) {out.txt('(').str(val).txt(')');}},
-        i : {txt : '.instanceof', val : function (out, val) {out.txt('(').txt(val).txt(')');}},
-        n : {txt : '.an', val : function (out, val) {out.txt('(').str(val).txt(')');}},
-        e : {txt : '.equal', val : function (out, val) {out.txt('(').str(val).txt(')');}},
-        q : {txt : '.equal', val : function (out, val) {out.txt('(').txt(val).txt(')');}},
-        l : {txt : '.length', val : function (out, val) {out.txt('(').txt(val).txt(')');}},
-        p : {txt : '.property', val : function (out, val) {out.txt('(').str(val).txt(')');}}
-    };
-    bddGen.standardOperators();
-    bddGen.standardCommands();
-    bddGen.registerCommand('e', function (out, actual, expected, value) {
-        out.indent()
-        .txt('expect(')
-        .txt(actual)
-        .txt(')');
-        if (expected) {
-            var exp = expected.split(''), last = exp.slice(-1)[0];
-            exp.forEach(function (letter) {
-                if (mapping[letter]) {
-                    out.txt(mapping[letter].txt);
-                }
-            });
-            if (value && mapping[last] && mapping[last].val) {
-                mapping[last].val(out, value);
-            }
-        }
-        out.txt(';').lf();
-    });
-    bddGen.registerCommand('be', function (out) {
-        out.ln('beforeEach(function () {').t().lf().ln('});');
-    });
-}
-
-gulp.task('gen', function () {
-    gulp.watch(files.test.gen, function () {
-        gulp.src(files.test.gen)
-        .pipe(bddGen(setupBddGen))
-        .on('error', function (error) {
-            gutil.log(error.message);
-        })
-        .pipe(cat());
-    });
+gulp.task('coverage.enforce', ['coverage'], function () {
+    return gulp.src('.')
+    .pipe(istanbulEnforcer({
+        thresholds : {
+            statements : 100,
+            branches : 100,
+            lines : 100,
+            functions : 100
+        },
+        coverageDirectory : files.target.coverage.dir,
+        rootDirectory : ''
+    }));
 });
+
+gulp.task('lint.main', function () {
+    return gulp.src(files.main.js.all)
+    .pipe(jshint(files.config.build.jshintrc.main))
+    .pipe(jshint.reporter('jshint-stylish'));
+});
+
+gulp.task('lint.test', function () {
+    return gulp.src(files.test.js.all)
+    .pipe(jshint(files.config.build.jshintrc.test))
+    .pipe(jshint.reporter('jshint-stylish'));
+});
+
+gulp.task('lint', ['lint.main', 'lint.test']);
+
+gulp.task('style', function () {
+    gulp.src([files.main.js.all, files.test.js.all])
+    .pipe(jscs(files.config.build.jscsrc));
+});
+
+gulp.task('quality', ['coverage.enforce', 'lint', 'style']);

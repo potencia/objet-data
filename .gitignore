@@ -1,5 +1,5 @@
 .idea/*
-data-object.iml
+objet-data.iml
 node_modules/*
 target/*
 src/test/gen

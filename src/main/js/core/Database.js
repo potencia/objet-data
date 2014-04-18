@@ -13,7 +13,7 @@ function Database(type, config) {
             isOpen : false,
             closeResults : {
                 code : NEVER_OPENED,
-                function : 'DataObject.Database.prototype.close()',
+                function : 'ObjetDAta.Database.prototype.close()',
                 message : 'This database has never been opened.'
             }
         },
@@ -113,7 +113,9 @@ Database.prototype.persist = function (tx) {
         return tx.obj[U].getPluginProperty(PLUGIN_TYPE, self.type, 'persist')(self, tx);
     } else {
         if (state.closeResults && state.closeResults.code === NEVER_OPENED) {
-            return this.open(tx.obj[U]).then(function () { return self.persist(tx); });
+            return this.open(tx.obj[U]).then(function () {
+                return self.persist(tx);
+            });
         }
         return Q.reject('Database.prototype.persist(): Could not persist the transaction because the database is closed.');
     }

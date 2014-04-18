@@ -1,16 +1,16 @@
 'use strict';
 
-var constants = require('./internal/constants'),
+var constants = require('./core/constants'),
 U = constants.U;
 
-function DataObject () {}
+function ObjetDAta () {}
 
-DataObject.Database = require('./internal/Database');
+ObjetDAta.Database = require('./core/Database');
 
-DataObject.Utility = require('./internal/Utility');
+ObjetDAta.Utility = require('./core/Utility');
 
-Object.defineProperty(DataObject.prototype, 'plugins', {
-    value: {},
+Object.defineProperty(ObjetDAta.prototype, 'plugins', {
+    value : {},
     writable : false,
     enumerable : false,
     configurable : false
@@ -51,33 +51,33 @@ function _setDefinition(Superclass, Subclass, definition) {
     };
 }
 
-DataObject.registerPlugin = function (Plugin) {
-    _registerPlugin(DataObject, Plugin);
+ObjetDAta.registerPlugin = function (Plugin) {
+    _registerPlugin(ObjetDAta, Plugin);
 };
 
-DataObject.setDefinition = function (Subclass, definition) {
-    _setDefinition(DataObject, Subclass, definition);
+ObjetDAta.setDefinition = function (Subclass, definition) {
+    _setDefinition(ObjetDAta, Subclass, definition);
 };
 
-DataObject.isPersistencePending = function (obj) {
+ObjetDAta.isPersistencePending = function (obj) {
     return obj[U].isPersistencePending();
 };
 
-DataObject.whenFullyPersisted = function (obj) {
+ObjetDAta.whenFullyPersisted = function (obj) {
     return obj[U].whenFullyPersisted();
 };
 
-DataObject.prototype.initialize = function (db) {
+ObjetDAta.prototype.initialize = function (db) {
     var config = {
         db : db,
         definition : this.constructor.definition
     };
     if (!config.definition) {
-        throw new Error('Error: DataObject.prototype.initialize(): The subclass must extend DataObject using the DataObject.setDefinition() function.');
+        throw new Error('Error: ObjetDAta.prototype.initialize(): The subclass must extend ObjetDAta using the ObjetDAta.setDefinition() function.');
     }
-    return new DataObject.Utility(this, config).obj;
+    return new ObjetDAta.Utility(this, config).obj;
 };
 
-DataObject.registerPlugin(require('./plugins/type/string'));
+ObjetDAta.registerPlugin(require('./plugins/type/string'));
 
-module.exports = DataObject;
+module.exports = ObjetDAta;

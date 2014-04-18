@@ -1,6 +1,6 @@
 'use strict';
 
-var constants = require('../../internal/constants'),
+var constants = require('../../core/constants'),
 U = constants.U,
 S = constants.S,
 EJDB = require('ejdb'),
@@ -19,7 +19,7 @@ function applyOnJb(db, method, args, max) {
         }
         return value;
     });
-    while(noFunc.length > 0) {
+    while (noFunc.length > 0) {
         lastArg = noFunc.pop();
         if (lastArg !== undefined && lastArg !== null) {
             noFunc.push(lastArg);
@@ -48,13 +48,17 @@ function EJDBPlugin () {
             db[S].jb = jb;
             Object.defineProperties(db, {
                 findOne : {
-                    value : function () { return applyOnJb(db, 'findOne', arguments, 4); },
+                    value : function () {
+                        return applyOnJb(db, 'findOne', arguments, 4);
+                    },
                     writable : false,
                     enumerable : false,
                     configurable : false
                 },
                 save : {
-                    value : function () { return applyOnJb(db, 'save', arguments, 2); },
+                    value : function () {
+                        return applyOnJb(db, 'save', arguments, 2);
+                    },
                     writable : false,
                     enumerable : false,
                     configurable : false

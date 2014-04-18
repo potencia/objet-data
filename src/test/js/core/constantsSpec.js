@@ -1,7 +1,7 @@
 'use strict';
 
 var expect = require('chai').expect,
-constants = require('../../../main/js/internal/constants');
+constants = require('../../../main/js/core/constants');
 
 describe('Central constants', function () {
     it('should have the [ U ] property set to [ #util ]', function () {
