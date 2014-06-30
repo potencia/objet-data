@@ -175,6 +175,9 @@ ObjetDAta.isPersistencePending(sd); // returns immediate true or false
 // objects can be queried for status regarding loading
 ObjetDAta.isLoaded(sd); // returns immediate true or false
 
+// objects can be queried for status regarding idle
+ObjetDAta.isIdle(sd); // returns immediate true or false - Alias for !(ObjetDAta.isPersistencePending(sd) || ObjetDAta.isLoaded(sd))
+
 ObjetDAta.whenFullyPersisted
 - when any persistence operation fails, it records its error
 - returns a promise
@@ -189,4 +192,10 @@ ObjetDAta.whenFullyLoaded
   - when loading is complete the promise is resolved
   - when an error occurs (or has already occurred) during loading the promise is rejected
 
+ObjetDAta.whenIdle
+- returns a promise
+  - when the object is not loading or persisting this resolves immediately
+  - when the object is loading but not persisting the promise resolves at the end of loading
+  - when the object is not loading but is persisting the promise resolves at the end of persisting
+  - when the object is both loading and persisting the promise resolves once both are finished
 */

@@ -114,7 +114,7 @@ describe('ObjetDAta.Database', function () {
             util.getPluginProperty.withArgs('db', 'mongol', 'close').returns('fake close()');
         });
 
-        describe('.open', function () {
+        describe('.open()', function () {
             it('should execute the [ open() ] function of the [ db ] plugin for it\'s [ type ]', function () {
                 var promise = db.open(util);
                 expect(util.getPluginProperty.called).to.true;
@@ -239,7 +239,7 @@ describe('ObjetDAta.Database', function () {
             });
         });
 
-        describe('.close', function () {
+        describe('.close()', function () {
             var pluginClose, closeDeferred;
             beforeEach(function () {
                 closeDeferred = Q.defer();
@@ -384,7 +384,7 @@ describe('ObjetDAta.Database', function () {
         });
     });
 
-    describe('.persist', function () {
+    describe('.persist()', function () {
         var tx, pluginPersist, persistDeferred;
         beforeEach(function () {
             openDeferred = Q.defer();

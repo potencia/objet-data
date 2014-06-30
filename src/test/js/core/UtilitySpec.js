@@ -618,6 +618,26 @@ describe('ObjetDAta.Utility', function () {
             persistDeferred.resolve();
         });
 
+        it('should NOT add an id to the transaction before calling [ db.persist() ] when [ .#internal.id ] undefined', function (done) {
+            delete util['#internal'].id;
+            util.commitTransaction(tx)
+            .then(function () {
+                expect(db.persist.firstCall.args[0].id).to.be.undefined;
+            })
+            .done(done);
+            persistDeferred.resolve();
+        });
+
+        it('should add an [ .#internal.id ] to the transaction before calling [ db.persist() ]', function (done) {
+            util['#internal'].id = 42;
+            util.commitTransaction(tx)
+            .then(function () {
+                expect(db.persist.firstCall.args[0].id).to.equal(42);
+            })
+            .done(done);
+            persistDeferred.resolve();
+        });
+
         describe('returned promise', function () {
             beforeEach(function () {
                 promise = util.commitTransaction(tx);

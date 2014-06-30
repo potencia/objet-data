@@ -210,6 +210,9 @@ Utility.prototype.commitTransaction = function (tx) {
     function next () {
         if (self[I].transactions.persisting.length > 0) {
             var current = self[I].transactions.persisting[0];
+            if (self[I].id) {
+                current.tx.id = self[I].id;
+            }
             db.persist(current.tx)
             .then(function () {
                 current.deferred.resolve();

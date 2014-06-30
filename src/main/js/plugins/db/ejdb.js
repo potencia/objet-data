@@ -77,11 +77,19 @@ function EJDBPlugin () {
             return copy;
         }, {});
 
-        return applyOnJb(db, 'save', [tx.obj[U].collection, data])
-        .then(function (oids) {
-            tx.obj[U].id = oids[0]._id;
-            return oids;
-        });
+        if (tx.id) {
+            data._id = tx.id;
+            return applyOnJb(db, 'update', [tx.obj[U].collection, data])
+            .then(function (oids) {
+                return oids;
+            });
+        } else {
+            return applyOnJb(db, 'save', [tx.obj[U].collection, data])
+            .then(function (oids) {
+                tx.obj[U].id = oids[0]._id;
+                return oids;
+            });
+        }
     };
 }
 

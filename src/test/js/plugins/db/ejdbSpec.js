@@ -305,11 +305,12 @@ describe('db plugin: ejdb', function () {
         });
     });
 
-    describe('.persist', function () {
-        var tx, jb;
+    describe('.persist()', function () {
+        var tx;
         beforeEach(function () {
             jb = {
-                save : sinon.stub()
+                save : sinon.stub(),
+                update : sinon.stub()
             };
             db = {
                 '#state' : {
@@ -330,7 +331,7 @@ describe('db plugin: ejdb', function () {
             expect(Q.isPromise(plugin.persist(db, tx))).to.be.true;
         });
 
-        describe('when obj has no id set', function () {
+        describe('when tx has no id set', function () {
             beforeEach(function () {
                 jb.save.returns([{_id : 'testId', foo : 'bar', bar : 'baz'}]);
                 tx.data = {
@@ -347,7 +348,7 @@ describe('db plugin: ejdb', function () {
                     expect(jb.save.firstCall.args).to.have.length(2);
                     expect(jb.save.firstCall.args[0]).to.equal('testCollection');
                     expect(jb.save.firstCall.args[1]).to.not.equal(tx.data);
-                    expect(JSON.stringify(jb.save.firstCall.args[1])).to.equal('{"foo":"bar","bar":"baz"}');
+                    expect(jb.save.firstCall.args[1]).to.deep.equal(tx.data);
                 })
                 .done(done);
             });
@@ -356,6 +357,33 @@ describe('db plugin: ejdb', function () {
                 plugin.persist(db, tx)
                 .then(function () {
                     expect(tx.obj['#util'].id).to.equal('testId');
+                })
+                .done(done);
+            });
+        });
+
+        describe('when obj has an id set', function () {
+            beforeEach(function () {
+                jb.update.returns([{_id : 256, bar : 'foo'}]);
+                tx.id = 256;
+                tx.data = {
+                    bar : 'foo'
+                };
+            });
+
+            it('should call EJDB.prototype.update() using the obj\'s collection, the transaction\'s id and a copy of the transaction\'s data', function (done) {
+                plugin.persist(db, tx)
+                .then(function (result) {
+                    expect(result).to.deep.equal([{_id : 256, bar : 'foo'}]);
+                    expect(jb.update.callCount).to.equal(1);
+                    expect(jb.update.firstCall.args).to.have.length(2);
+                    expect(jb.update.firstCall.args[0]).to.equal('testCollection');
+                    expect(jb.update.firstCall.args[1]).to.not.equal(tx.data);
+                    expect(jb.update.firstCall.args[1]).to.not.deep.equal(tx.data);
+                    expect(jb.update.firstCall.args[1]).to.deep.equal({
+                        _id : 256,
+                        bar : 'foo'
+                    });
                 })
                 .done(done);
             });

@@ -66,9 +66,11 @@ describe('type plugin: string', function () {
         });
 
         it('should provide string related functionality', function (done) {
+            var id;
             obj.name = 'John Johnson II';
             ObjetDAta.whenFullyPersisted(obj)
             .then(function () {
+                id = obj.id;
                 return tools.getData(obj);
             })
             .then(function (data) {
@@ -77,6 +79,22 @@ describe('type plugin: string', function () {
                 });
                 expect(data.persisted, 'Persisted is incorrect').to.deep.equal({
                     name : 'John Johnson II'
+                });
+            })
+            .then(function () {
+                obj.name = 'Some guy, you know?';
+                return ObjetDAta.whenFullyPersisted(obj);
+            })
+            .then(function () {
+                expect(obj.id).to.equal(id);
+                return tools.getData(obj);
+            })
+            .then(function (data) {
+                expect(data.memory, 'Memory is incorrect').to.deep.equal({
+                    name : 'Some guy, you know?'
+                });
+                expect(data.persisted, 'Persisted is incorrect').to.deep.equal({
+                    name : 'Some guy, you know?'
                 });
             })
             .fail(function (reason) {
