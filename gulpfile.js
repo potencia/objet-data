@@ -58,7 +58,7 @@ gulp.task('prepare', function (done) {
 
 gulp.task('test', ['prepare'], function () {
     gulp.src(files.test.js.spec.all)
-    .pipe(mocha({reporter : gutil.env.reporter || 'min'}))
+    .pipe(mocha({reporter : gutil.env.reporter || 'dot'}))
     .on('error', function (error) {
         gutil.log(gutil.colors.red(error.message));
     });
@@ -73,7 +73,7 @@ gulp.task('coverage', ['prepare'], function (done) {
     .pipe(istanbul())
     .on('end', function () {
         gulp.src(files.test.js.spec.all)
-        .pipe(mocha({reporter : gutil.env.reporter || 'min'}))
+        .pipe(mocha({reporter : gutil.env.reporter || 'dot'}))
         .on('error', function (error) {
             gutil.log(gutil.colors.red(error.message));
         })

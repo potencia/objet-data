@@ -321,7 +321,8 @@ describe('db plugin: ejdb', function () {
                     '#util' : {
                         collection : 'testCollection'
                     }
-                }
+                },
+                data : {}
             };
         });
 
@@ -338,12 +339,15 @@ describe('db plugin: ejdb', function () {
                 };
             });
 
-            it('should call EJDB.prototype.save() using the obj\'s collection and the transaction\'s data', function (done) {
+            it('should call EJDB.prototype.save() using the obj\'s collection and a copy of the transaction\'s data', function (done) {
                 plugin.persist(db, tx)
                 .then(function (result) {
                     expect(result).to.deep.equal([{_id : 'testId', foo : 'bar', bar : 'baz'}]);
                     expect(jb.save.callCount).to.equal(1);
-                    expect(jb.save.firstCall.args).to.deep.equal(['testCollection', {foo : 'bar', bar : 'baz'}]);
+                    expect(jb.save.firstCall.args).to.have.length(2);
+                    expect(jb.save.firstCall.args[0]).to.equal('testCollection');
+                    expect(jb.save.firstCall.args[1]).to.not.equal(tx.data);
+                    expect(JSON.stringify(jb.save.firstCall.args[1])).to.equal('{"foo":"bar","bar":"baz"}');
                 })
                 .done(done);
             });

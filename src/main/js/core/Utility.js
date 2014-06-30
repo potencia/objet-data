@@ -1,23 +1,61 @@
 'use strict';
 
 var constants = require('./constants'),
+I = '#internal',
 Q = require('q');
+
+function _createInvalidIdError(id, error) {
+    return 'ObjetDAta.id.set(): id [ ' + id + ' ] is not a valid id: ' + error;
+}
 
 function Utility (obj, config) {
     var self = this;
-    self.data = {};
     self.obj = obj;
-    self.toPersist = [];
-    self.persistenceErrors = [];
-    self.deferUntilPersistenceCompletes = [];
+
+    Object.defineProperty(self, I, {
+        enumerable : false,
+        configurable : false,
+        writable : false,
+        value : {
+            deferred : {
+                setDatabase : [],
+                persistenceDone : []
+            },
+            transactions : {
+                uncommitted : [],
+                persisting : [],
+                errors : []
+            }
+        }
+    });
+
     Object.defineProperty(self.obj, constants.U, {
         value : self,
         writable : false,
         enumerable : false,
         configurable : false
     });
+    Object.defineProperty(self.obj, 'id', {
+        enumerable : true,
+        configurable : false,
+        get : function () {
+            return self[I].id;
+        },
+        set : function (id) {
+            self.database
+            .then(function (database) {
+                var error = database.validateId(self.obj, id);
+                if (error) {
+                    self[I].transactions.errors.push(_createInvalidIdError(id, error));
+                } else {
+                    self[I].id = id;
+                }
+            });
+        }
+    });
+
     if (config.db) {
-        this.db = config.db;
+        self[I].database = config.db;
     }
     if (config.definition) {
         if (config.definition.collection) {
@@ -111,66 +149,109 @@ Utility.pluginDefaults.type.createAccessor = function (util, obj, key) {
             return util.data[key];
         },
         set : function (value) {
-            var tx = util.getTransaction();
-            tx.data[key] = value;
-            tx.commit();
-            //util.data[key] = value;
+            util.getTransaction()
+            .then(function (tx) {
+                tx.data[key] = value;
+                tx.commit();
+            });
         }
     });
 };
 
+Utility.pluginDefaults.db = {};
+
+Utility.pluginDefaults.db.validateId = function () {};
+
+Object.defineProperty(Utility.prototype, 'database', {
+    enumerable : true,
+    configurable : false,
+    get : function () {
+        if (this[I].database) {
+            return Q(this[I].database);
+        } else {
+            var deferred = Q.defer();
+            this[I].deferred.setDatabase.push(deferred);
+            return deferred.promise;
+        }
+    },
+    set : function (database) {
+        var error, internal = this[I];
+        internal.database = database;
+        internal.deferred.setDatabase.forEach(function (d) { d.resolve(this); }, internal.database);
+        internal.deferred.setDatabase.length = 0;
+        if (internal.id) {
+            error = internal.database.validateId(internal.id);
+        }
+        if (error) {
+            this[I].transactions.errors.push(_createInvalidIdError(internal.id, error));
+            delete internal.id;
+        }
+    }
+});
+
 Utility.prototype.getTransaction = function () {
-    return new Utility.Transaction(this.obj);
+    var deferred = Q.defer(), tx = new Utility.Transaction(this.obj);
+    this[I].transactions.uncommitted.push(tx);
+    deferred.resolve(tx);
+    return deferred.promise;
 };
 
 Utility.prototype.commitTransaction = function (tx) {
     var self = this, todo = {
         tx : tx,
         deferred : Q.defer()
-    }, leftToPersist = self.toPersist.length;
-    self.toPersist.push(todo);
+    }, alreadyPersisting = self[I].transactions.persisting.length, db,
+    uncommittedIndex = self[I].transactions.uncommitted.indexOf(tx);
+    if (uncommittedIndex !== -1) {
+        self[I].transactions.uncommitted.splice(uncommittedIndex, 1);
+    }
+    self[I].transactions.persisting.push(todo);
 
     function next () {
-        if (self.toPersist.length > 0) {
-            var current = self.toPersist[0];
-            self.db.persist(current.tx)
+        if (self[I].transactions.persisting.length > 0) {
+            var current = self[I].transactions.persisting[0];
+            db.persist(current.tx)
             .then(function () {
                 current.deferred.resolve();
             }, function (reason) {
-                self.persistenceErrors.push(reason);
+                self[I].transactions.errors.push(reason);
                 current.deferred.reject(reason);
             })
             .done(function () {
-                self.toPersist.shift();
+                self[I].transactions.persisting.shift();
                 setImmediate(next);
             });
         } else {
             self.whenFullyPersisted();
         }
     }
-    if (leftToPersist === 0) {
-        next();
+    if (alreadyPersisting === 0) {
+        self.database
+        .then(function (database) {
+            db = database;
+        })
+        .then(next);
     }
 
     return todo.deferred.promise;
 };
 
 Utility.prototype.isPersistencePending = function () {
-    return !!this.toPersist.length;
+    return this[I].transactions.uncommitted.length + this[I].transactions.persisting.length > 0;
 };
 
 Utility.prototype.whenFullyPersisted = function () {
     var errors, toNotify, deferred = Q.defer();
-    this.deferUntilPersistenceCompletes.push(deferred);
+    this[I].deferred.persistenceDone.push(deferred);
     if (!this.isPersistencePending()) {
-        if (this.persistenceErrors.length) {
+        if (this[I].transactions.errors.length) {
             errors = [];
-            while (this.persistenceErrors.length) {
-                errors.push(this.persistenceErrors.shift());
+            while (this[I].transactions.errors.length) {
+                errors.push(this['#internal'].transactions.errors.shift());
             }
         }
-        while (this.deferUntilPersistenceCompletes.length) {
-            toNotify = this.deferUntilPersistenceCompletes.shift();
+        while (this[I].deferred.persistenceDone.length) {
+            toNotify = this[I].deferred.persistenceDone.shift();
             if (errors) {
                 toNotify.reject(errors);
             } else {

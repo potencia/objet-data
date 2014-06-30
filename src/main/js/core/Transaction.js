@@ -4,9 +4,8 @@ var constants = require('./constants'),
 U = constants.U,
 Q = require('q');
 
-function Transaction (obj, db) {
+function Transaction (obj) {
     this.obj = obj;
-    this.db = db;
     this.autoCommit = true;
     this.data = {};
     this.toClear = [];

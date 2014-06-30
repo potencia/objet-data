@@ -40,7 +40,7 @@ describe('type plugin: string', function () {
         });
     });
 
-    describe.skip('when used in a definition', function () {
+    describe('when used in a definition', function () {
         var obj, db;
         before(function () {
             db = new ObjetDAta.Database('ejdb', {
@@ -75,7 +75,7 @@ describe('type plugin: string', function () {
                 expect(data.memory, 'Memory is incorrect').to.deep.equal({
                     name : 'John Johnson II'
                 });
-                expect(data.persisted, 'Memory is incorrect').to.deep.equal({
+                expect(data.persisted, 'Persisted is incorrect').to.deep.equal({
                     name : 'John Johnson II'
                 });
             })

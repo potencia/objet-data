@@ -34,6 +34,12 @@ function Database(type, config) {
             writable : false,
             enumerable : true,
             configurable : false
+        },
+        cachedPluginProperties : {
+            value : {},
+            writable : false,
+            enumerable : false,
+            configurable : false
         }
     });
 }
@@ -79,6 +85,14 @@ function setErrorState(state, reason) {
     return reason;
 }
 
+function _getPluginProperty (db, util, type, plugin, property) {
+    var name = new Array(type, plugin, property).join('.');
+    if (!db.cachedPluginProperties.hasOwnProperty(name)) {
+        db.cachedPluginProperties[name] = util.getPluginProperty(type, plugin, property);
+    }
+    return db.cachedPluginProperties[name];
+}
+
 Database.prototype.open = function (util) {
     var pluginName = this.type, state = this[S];
     if (state.isOpen) {
@@ -108,9 +122,19 @@ Database.prototype.close = function () {
 };
 
 Database.prototype.persist = function (tx) {
+    if (Object.keys(tx.data).length === 0) {
+        return Q();
+    }
     var self = this, state = self[S];
     if (state.isOpen) {
-        return tx.obj[U].getPluginProperty(PLUGIN_TYPE, self.type, 'persist')(self, tx);
+        return _getPluginProperty(self, tx.obj[U], PLUGIN_TYPE, self.type, 'persist')(self, tx)
+        .then(function (result) {
+            tx.obj[U].data = tx.obj[U].data || {};
+            Object.keys(tx.data).forEach(function (key) {
+                tx.obj[U].data[key] = tx.data[key];
+            });
+            return result;
+        });
     } else {
         if (state.closeResults && state.closeResults.code === NEVER_OPENED) {
             return this.open(tx.obj[U]).then(function () {
@@ -119,6 +143,10 @@ Database.prototype.persist = function (tx) {
         }
         return Q.reject('Database.prototype.persist(): Could not persist the transaction because the database is closed.');
     }
+};
+
+Database.prototype.validateId = function (obj, id) {
+    return _getPluginProperty(this, obj[U], PLUGIN_TYPE, this.type, 'validateId')(id);
 };
 
 module.exports = Database;

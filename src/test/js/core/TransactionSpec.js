@@ -23,11 +23,6 @@ describe('ObjetDAta.Utility.Transaction', function () {
             expect(tx.obj).to.deep.equal(obj);
         });
 
-        it('should set the [ db ] property to the supplied value', function () {
-            expect(tx).to.have.property('db');
-            expect(tx.db).to.deep.equal(db);
-        });
-
         it('should set the [ data ] property to an empty object', function () {
             expect(tx).to.have.property('data');
             expect(tx.data).to.deep.equal({});
@@ -86,9 +81,11 @@ Goal: be able to write code like this:
 //--- C(rud) ---
 var firstSd = new SpecialData().initialize(db);
 
-firstSd.name = 'Arthur'; // persistence is initiated since id is not set, insert will happen
+firstSd.name = 'Arthur'; // persistence is initiated. Since id is not set, insert will happen
 
-console.log(firstSd.name); // Could output undefined or 'Arthur' - non-deterministic
+// other code // takes some time //
+
+console.log(firstSd.name); // Could output undefined or 'Arthur' - depends how fast the persist is
 
 ObjetDAta.whenFullyPersisted(sd)
 .then(function (result) { // result is the same as firstSd. Provided for convenience

@@ -396,7 +396,8 @@ describe('ObjetDAta.Database', function () {
             tx = {
                 obj : {
                     '#util' : util
-                }
+                },
+                data : {}
             };
             pluginOpen = sinon.stub().returns(openDeferred.promise);
             pluginPersist = sinon.stub().returns(persistDeferred.promise);
@@ -404,28 +405,60 @@ describe('ObjetDAta.Database', function () {
             util.getPluginProperty.withArgs('db', 'mongol', 'persist').returns(pluginPersist);
         });
 
-        describe('when the database has been opened', function () {
-            beforeEach(function (done) {
-                db.open(util).done(function () {
-                    util.getPluginProperty.reset();
-                    done();
-                });
-                openDeferred.resolve();
+        it('should do nothing and resolve with no results when no data is set on the transaction', function (done) {
+            db.persist(tx)
+            .then(function (result) {
+                expect(result).to.be.undefined;
+                expect(util.getPluginProperty.callCount).to.equal(0);
+            })
+            .done(done);
+        });
+
+        describe('when the database has never been opened', function () {
+            beforeEach(function () {
+                tx.data.answer = 42;
             });
 
-            it('should execute the [ persist() ] function of the [ db ] plugin for it\'s [ type ]', function () {
-                var promise = db.persist(tx);
-                expect(util.getPluginProperty.callCount).to.equal(1);
-                expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'persist']);
-                expect(pluginPersist.callCount).to.equal(1);
-                expect(pluginPersist.firstCall.args).to.deep.equal([db, tx]);
-                expect(Q.isPromise(promise)).to.be.true;
+            it('should open the db and execute the [ persist() ] function of the [ db ] plugin for it\'s [ type ]', function (done) {
+                db.persist(tx)
+                .then(function () {
+                    expect(util.getPluginProperty.callCount).to.be.above(1);
+                    expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'open']);
+                    expect(util.getPluginProperty.lastCall.args).to.deep.equal(['db', 'mongol', 'persist']);
+                    expect(pluginPersist.callCount).to.equal(1);
+                    expect(pluginPersist.firstCall.args).to.deep.equal([db, tx]);
+                })
+                .done(done);
+                openDeferred.resolve();
+                persistDeferred.resolve();
+            });
+
+            it('should resolve with the results from the persistence when all is successful', function (done) {
+                db.persist(tx)
+                .then(function (result) {
+                    expect(result).to.equal('It worked!');
+                })
+                .done(done);
+                openDeferred.resolve('Opened the database.');
+                persistDeferred.resolve('It worked!');
+            });
+
+            it('should reject with any errors from the attempt to open the database', function (done) {
+                db.persist(tx)
+                .then(function () {
+                    expect(false, 'Should have failed.').to.be.true;
+                }, function (reason) {
+                    expect(reason).to.equal('Could not open the database.');
+                })
+                .done(done);
+                openDeferred.reject('Could not open the database.');
             });
         });
 
         describe('when the database has been opened and closed', function () {
             beforeEach(function (done) {
                 var closeDeferred = Q.defer();
+                tx.data.answer = 42;
                 db.open(util)
                 .done(function () {
                     db['#state'].pluginClose = sinon.stub().returns(closeDeferred.promise);
@@ -451,31 +484,119 @@ describe('ObjetDAta.Database', function () {
             });
         });
 
-        describe('when the database has never been opened', function () {
-            it('should open the db and execute the [ persist() ] function of the [ db ] plugin for it\'s [ type ]', function (done) {
-                db.persist(tx)
-                .then(function () {
-                    expect(util.getPluginProperty.callCount).to.be.above(1);
-                    expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'open']);
-                    expect(util.getPluginProperty.lastCall.args).to.deep.equal(['db', 'mongol', 'persist']);
-                    expect(pluginPersist.callCount).to.equal(1);
-                    expect(pluginPersist.firstCall.args).to.deep.equal([db, tx]);
-                })
-                .done(done);
+        describe('when the database is open', function () {
+            var promise;
+            beforeEach(function (done) {
+                tx.data = {
+                    lastName : 'Khan'
+                };
+                db.open(util).done(function () {
+                    util.getPluginProperty.reset();
+                    done();
+                });
                 openDeferred.resolve();
-                persistDeferred.resolve();
             });
 
-            it('should reject with any errors from the attempt to open the database', function (done) {
-                db.persist(tx)
-                .then(function () {
-                    expect(false, 'Should have failed.').to.be.true;
-                }, function (reason) {
-                    expect(reason).to.equal('Couldn\'t open the database.');
-                })
-                .done(done);
-                openDeferred.reject('Couldn\'t open the database.');
+            it('should execute and cache the [ persist() ] function of the [ db ] plugin for it\'s [ type ]', function () {
+                expect(db.cachedPluginProperties['db.mongol.persist']).to.be.undefined;
+                promise = db.persist(tx);
+                expect(util.getPluginProperty.callCount).to.equal(1);
+                expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'persist']);
+                expect(pluginPersist.callCount).to.equal(1);
+                expect(pluginPersist.firstCall.args).to.deep.equal([db, tx]);
+                expect(db.cachedPluginProperties['db.mongol.persist']).to.deep.equal(pluginPersist);
+                expect(Q.isPromise(promise)).to.be.true;
             });
+
+            describe('when persistence is successful', function () {
+                beforeEach(function () {
+                    promise = db.persist(tx);
+                });
+
+                it('should create tx.obj.#util.data when it does not exist', function (done) {
+                    delete tx.obj['#util'].data;
+                    promise
+                    .then(function () {
+                        expect(tx.obj['#util']).to.have.property('data');
+                        expect(tx.obj['#util'].data).to.be.an('object');
+                    })
+                    .done(done);
+                    persistDeferred.resolve();
+                });
+
+                it('should add new fields from tx.data to tx.obj.#util.data', function (done) {
+                    tx.obj['#util'].data = {
+                        firstName : 'Genghis'
+                    };
+                    promise
+                    .then(function () {
+                        expect(tx.obj['#util'].data).to.deep.equal({
+                            firstName : 'Genghis',
+                            lastName : 'Khan'
+                        });
+                    })
+                    .done(done);
+                    persistDeferred.resolve();
+                });
+
+                it('should change overwrite existing fields on tx.obj.#util.data using data from tx.data', function (done) {
+                    tx.obj['#util'].data = {
+                        firstName : 'Genghis',
+                        lastName : 'Hotula'
+                    };
+                    promise
+                    .then(function () {
+                        expect(tx.obj['#util'].data).to.deep.equal({
+                            firstName : 'Genghis',
+                            lastName : 'Khan'
+                        });
+                    })
+                    .done(done);
+                    persistDeferred.resolve();
+                });
+
+                it('should resolve with the results from the plugin resolution', function (done) {
+                    promise
+                    .then(function (result) {
+                        expect(result).to.equal('It worked!');
+                    })
+                    .done(done);
+                    persistDeferred.resolve('It worked!');
+                });
+            });
+        });
+    });
+
+    describe('.validateId', function () {
+        var validateIdStub;
+        beforeEach(function () {
+            db = new ObjetDAta.Database('mongol', {});
+            util = {
+                getPluginProperty : sinon.stub()
+            };
+            validateIdStub = sinon.stub();
+            validateIdStub.extra = 42;
+            util.getPluginProperty.withArgs('db', 'mongol', 'validateId').returns(validateIdStub);
+        });
+
+        it('should execute the [ validateId() ] function of the [ db ] plugin for it\'s [ type ]', function () {
+            db.validateId({'#util' : util}, 'someId');
+            expect(util.getPluginProperty.callCount).to.equal(1);
+            expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'validateId']);
+            expect(validateIdStub.callCount).to.equal(1);
+            expect(validateIdStub.firstCall.args).to.deep.equal(['someId']);
+        });
+
+        it('should call a cached version of the plugin\'s validateId() after the first call', function () {
+            db.validateId({'#util' : util}, 'someId');
+            db.validateId({'#util' : util}, 'someOtherId');
+            db.validateId({'#util' : util}, 'yetAnotherId');
+            expect(util.getPluginProperty.callCount).to.equal(1);
+            expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'validateId']);
+            expect(validateIdStub.callCount).to.equal(3);
+            expect(validateIdStub.getCall(0).args).to.deep.equal(['someId']);
+            expect(validateIdStub.getCall(1).args).to.deep.equal(['someOtherId']);
+            expect(validateIdStub.getCall(2).args).to.deep.equal(['yetAnotherId']);
         });
     });
 });

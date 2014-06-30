@@ -72,7 +72,12 @@ function EJDBPlugin () {
     };
 
     this.persist = function (db, tx) {
-        return applyOnJb(db, 'save', [tx.obj[U].collection, tx.data])
+        var data = Object.keys(tx.data).reduce(function (copy, key) {
+            copy[key] = tx.data[key];
+            return copy;
+        }, {});
+
+        return applyOnJb(db, 'save', [tx.obj[U].collection, data])
         .then(function (oids) {
             tx.obj[U].id = oids[0]._id;
             return oids;

@@ -24,11 +24,14 @@ TestTools.prototype.getData = function (obj) {
         id : obj[U].id,
         memory : obj[U].data
     };
-    return obj[U].db.findOne(obj[U].collection, {_id : obj[U].id})
-    .then(function (persisted) {
-        delete persisted._id;
-        data.persisted = persisted;
-        return data;
+    return obj[U].database
+    .then(function (database) {
+        return database.findOne(obj[U].collection, {_id : obj[U].id})
+        .then(function (persisted) {
+            delete persisted._id;
+            data.persisted = persisted;
+            return data;
+        });
     });
 };
 
