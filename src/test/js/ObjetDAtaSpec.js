@@ -291,17 +291,17 @@ describe('ObjetDAta', function () {
             });
         });
 
-        describe('static #util wrapper function', function () {
+        describe('static  util wrapper function', function () {
             var util;
             beforeEach(function () {
                 testObject = new TestClass().initialize();
-                util = testObject['#util'];
+                util = testObject[' util'];
                 sinon.stub(util, 'isPersistencePending');
                 sinon.stub(util, 'whenFullyPersisted');
             });
 
             describe('.isPersistencePending', function () {
-                it('should wrap .#util.isPersistencePending', function () {
+                it('should wrap  util.isPersistencePending', function () {
                     util.isPersistencePending.returns('should be a boolean');
                     expect(ObjetDAta.isPersistencePending(testObject)).to.equal('should be a boolean');
                     expect(util.isPersistencePending.called).to.be.true;
@@ -309,7 +309,7 @@ describe('ObjetDAta', function () {
             });
 
             describe('.whenFullyPersisted', function () {
-                it('should wrap .#util.whenFullyPersisted', function () {
+                it('should wrap  util.whenFullyPersisted', function () {
                     util.whenFullyPersisted.returns('should be a promise');
                     expect(ObjetDAta.whenFullyPersisted(testObject)).to.equal('should be a promise');
                     expect(util.whenFullyPersisted.called).to.be.true;

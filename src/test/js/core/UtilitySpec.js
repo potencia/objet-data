@@ -30,13 +30,14 @@ describe('ObjetDAta.Utility', function () {
     });
 
     describe('constructor', function () {
-        it('should have a special property [ #internal ]', function () {
+        it('should have a special property [  priv ]', function () {
             util = new ObjetDAta.Utility({}, {});
-            var descriptor = Object.getOwnPropertyDescriptor(util, '#internal');
+            var descriptor = Object.getOwnPropertyDescriptor(util, ' priv');
             expect(descriptor.enumerable).to.be.false;
             expect(descriptor.configurable).to.be.false;
             expect(descriptor.writable).to.be.false;
             expect(descriptor.value).to.deep.equal({
+                ' state' : 0,
                 deferred : {
                     setDatabase : [],
                     persistenceDone : []
@@ -55,10 +56,10 @@ describe('ObjetDAta.Utility', function () {
             expect(util.obj.specialValue).to.equal('very very special');
         });
 
-        it('should set itself as the special [ #util ] property on [ .obj ]', function () {
-            expect(Object.getOwnPropertyDescriptor(obj, '#util')).to.be.undefined;
+        it('should set itself as the special [  util ] property on [ .obj ]', function () {
+            expect(Object.getOwnPropertyDescriptor(obj, ' util')).to.be.undefined;
             util = new ObjetDAta.Utility(obj, {db : {name : 'a database'}});
-            expect(Object.getOwnPropertyDescriptor(obj, '#util')).to.deep.equal({
+            expect(Object.getOwnPropertyDescriptor(obj, ' util')).to.deep.equal({
                 value : util,
                 writable : false,
                 enumerable : false,
@@ -71,10 +72,10 @@ describe('ObjetDAta.Utility', function () {
             expect(util).to.not.have.property('data');
         });
 
-        it('should set the [ .#internal.database ] property', function () {
+        it('should set the [  priv.database ] property', function () {
             util = new ObjetDAta.Utility(obj, {db : {foo : true}});
-            expect(util['#internal']).to.have.property('database');
-            expect(util['#internal'].database).to.deep.equal({foo : true});
+            expect(util[' priv']).to.have.property('database');
+            expect(util[' priv'].database).to.deep.equal({foo : true});
         });
 
         it('should set the [ .collection ] property', function () {
@@ -89,19 +90,36 @@ describe('ObjetDAta.Utility', function () {
             expect(util.properties).to.have.property('name');
         });
 
-        it('should create accessors for all appropriate properties', function () {
+        describe('property accessors', function () {
             var descriptor;
-            util = new ObjetDAta.Utility(obj, {definition : {properties : {
-                name : {type : 'string'},
-                age : {type : 'number'}
-            }}});
-            descriptor = Object.getOwnPropertyDescriptor(obj, 'name');
-            expect(descriptor.get).to.be.a('function');
-            expect(descriptor.set).to.be.a('function');
-            descriptor = Object.getOwnPropertyDescriptor(obj, 'age');
-            expect(descriptor.get).to.be.a('function');
-            expect(descriptor.set).to.be.a('function');
+            beforeEach(function () {
+                util = new ObjetDAta.Utility(obj, {definition : {properties : {
+                    name : {type : 'string'},
+                    age : {type : 'number'}
+                }}});
+            });
+
+            it('should be created for all appropriate properties', function () {
+                descriptor = Object.getOwnPropertyDescriptor(obj, 'name');
+                expect(descriptor.get).to.be.a('function');
+                expect(descriptor.set).to.be.a('function');
+                descriptor = Object.getOwnPropertyDescriptor(obj, 'age');
+                expect(descriptor.get).to.be.a('function');
+                expect(descriptor.set).to.be.a('function');
+            });
+
+            it('getter should always invoke .isLoaded()', function () {
+                sinon.stub(util, 'isLoaded');
+                obj.name;
+                obj.age;
+                try {
+                    expect(util.isLoaded.callCount).to.equal(2);
+                } finally {
+                    util.isLoaded.restore();
+                }
+            });
         });
+
 
         describe('id configuration', function () {
             var descriptor;
@@ -129,8 +147,8 @@ describe('ObjetDAta.Utility', function () {
         });
 
         describe('getter', function () {
-            it('should return obj[U][\'#internal\'].id', function () {
-                util['#internal'].id = 42;
+            it('should return obj[U][P].id', function () {
+                util[' priv'].id = 42;
                 expect(obj.id).to.equal(42);
             });
         });
@@ -150,7 +168,7 @@ describe('ObjetDAta.Utility', function () {
                 obj.id = 'foo';
                 util.database
                 .then(function () {
-                    expect(util['#internal'].id).to.equal('foo');
+                    expect(util[' priv'].id).to.equal('foo');
                 }).done(done);
             });
 
@@ -159,37 +177,37 @@ describe('ObjetDAta.Utility', function () {
                     db.validateId.returns('Sorry. That\'s a bad id.');
                 });
 
-                it('should add the error string to [ .#internal.transactions.errors ]', function (done) {
+                it('should add the error string to [  priv.transactions.errors ]', function (done) {
                     obj.id = 'foo';
                     util.database
                     .then(function () {
-                        expect(util['#internal'].transactions.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Sorry. That\'s a bad id.');
+                        expect(util[' priv'].transactions.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Sorry. That\'s a bad id.');
                     }).done(done);
                 });
 
                 it('should not update the id', function (done) {
-                    util['#internal'].id = 42;
+                    util[' priv'].id = 42;
                     obj.id = 'foo';
                     util.database
                     .then(function () {
-                        expect(util['#internal'].id).to.equal(42);
+                        expect(util[' priv'].id).to.equal(42);
                     }).done(done);
                 });
             });
 
-            describe('when [ .#internal.database ] is unset', function () {
+            describe('when [  priv.database ] is unset', function () {
                 beforeEach(function () {
                     obj = {};
                     util = new ObjetDAta.Utility(obj, {});
                 });
 
                 it('should not set the value until the database is set', function (done) {
-                    expect(util['#internal'].database).to.be.undefined;
+                    expect(util[' priv'].database).to.be.undefined;
                     obj.id = 'anything';
-                    expect(util['#internal'].id).to.be.undefined;
+                    expect(util[' priv'].id).to.be.undefined;
                     util.database
                     .then(function () {
-                        expect(util['#internal'].id).to.equal('anything');
+                        expect(util[' priv'].id).to.equal('anything');
                     }).done(done);
                     util.database = db;
                 });
@@ -211,7 +229,7 @@ describe('ObjetDAta.Utility', function () {
             ObjetDAta.setDefinition(ChildClass, {});
             ChildClass.setDefinition(GrandchildClass, {});
             obj = new GrandchildClass().initialize();
-            util = obj['#util'];
+            util = obj[' util'];
         });
         afterEach(function () {
             Object.keys(ObjetDAta.Utility.pluginDefaults).forEach(function (key) {
@@ -331,7 +349,7 @@ describe('ObjetDAta.Utility', function () {
     describe('plugin defaults', function () {
         beforeEach(function () {
             ObjetDAta.setDefinition(ChildClass, {});
-            util = new ChildClass().initialize()['#util'];
+            util = new ChildClass().initialize()[' util'];
         });
 
         describe('type.createAccessor()', function () {
@@ -425,9 +443,9 @@ describe('ObjetDAta.Utility', function () {
         });
 
         describe('getter', function () {
-            describe('when [ .#internal.database ] is already set', function () {
+            describe('when [  priv.database ] is already set', function () {
                 beforeEach(function () {
-                    util['#internal'].database = db;
+                    util[' priv'].database = db;
                 });
 
                 it('should return an already fulfilled promise', function () {
@@ -436,21 +454,21 @@ describe('ObjetDAta.Utility', function () {
                     expect(promise.isFulfilled()).to.be.true;
                 });
 
-                it('should be resolved with [ .#internal.database ]', function (done) {
+                it('should be resolved with [  priv.database ]', function (done) {
                     util.database.then(function (database) {
                         expect(db).to.equal(database);
                     }).done(done);
                 });
             });
 
-            describe('when [ .#internal.database ] is not set', function () {
+            describe('when [  priv.database ] is not set', function () {
                 it('should return an unfulfilled promise', function () {
                     promise = util.database;
                     expect(Q.isPromise(promise)).to.be.true;
                     expect(promise.isFulfilled()).to.be.false;
                 });
 
-                it('should resolve with the [ .#internal.database ] when .database is successfully set', function (done) {
+                it('should resolve with the [  priv.database ] when .database is successfully set', function (done) {
                     util.database
                     .then(function (database) {
                         expect(database).to.equal(db);
@@ -466,7 +484,7 @@ describe('ObjetDAta.Utility', function () {
                     util.database.then(function () { order.push(3); })
                     .then(function () {
                         expect(order).to.deep.equal([1, 2, 3]);
-                        expect(util['#internal'].deferred.setDatabase).to.have.length(0);
+                        expect(util[' priv'].deferred.setDatabase).to.have.length(0);
                     }).done(done);
                     util.database = db;
                 });
@@ -474,9 +492,9 @@ describe('ObjetDAta.Utility', function () {
         });
 
         describe('setter', function () {
-            it('should set the [ .#internal.database ]', function () {
+            it('should set the [  priv.database ]', function () {
                 expect(util.database = db).to.equal(db);
-                expect(util['#internal'].database).to.equal(db);
+                expect(util[' priv'].database).to.equal(db);
             });
 
             describe('when [ .id ] is NOT already set', function () {
@@ -514,7 +532,7 @@ describe('ObjetDAta.Utility', function () {
                         util.database = db;
                         util.database
                         .then(function () {
-                            expect(util['#internal'].id).to.equal(42);
+                            expect(util[' priv'].id).to.equal(42);
                         }).done(done);
                     });
                 });
@@ -524,14 +542,14 @@ describe('ObjetDAta.Utility', function () {
                         db.validateId.returns('Bad id');
                     });
 
-                    it('should add the error string to [ .#internal.transactions.errors ]', function (done) {
-                        util['#internal'].id = 'foo';
-                        expect(util['#internal'].transactions.errors).to.have.length(0);
+                    it('should add the error string to [  priv.transactions.errors ]', function (done) {
+                        util[' priv'].id = 'foo';
+                        expect(util[' priv'].transactions.errors).to.have.length(0);
                         util.database = db;
                         util.database
                         .then(function () {
-                            expect(util['#internal'].transactions.errors).to.have.length(1);
-                            expect(util['#internal'].transactions.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Bad id');
+                            expect(util[' priv'].transactions.errors).to.have.length(1);
+                            expect(util[' priv'].transactions.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Bad id');
                         }).done(done);
                     });
 
@@ -558,10 +576,10 @@ describe('ObjetDAta.Utility', function () {
             expect(Q.isPromise(util.getTransaction())).to.be.true;
         });
 
-        it('should add the transaction to [ util.#internal.transactions.uncommitted ]', function (done) {
+        it('should add the transaction to [  priv.transactions.uncommitted ]', function (done) {
             util.getTransaction()
             .then(function (tx) {
-                expect(util['#internal'].transactions.uncommitted.indexOf(tx)).to.not.equal(-1);
+                expect(util[' priv'].transactions.uncommitted.indexOf(tx)).to.not.equal(-1);
             })
             .done(done);
         });
@@ -591,17 +609,17 @@ describe('ObjetDAta.Utility', function () {
             .done(done);
         });
 
-        it('should add the passed transaction and a deferred object to the end of [ util.#internal.transactions.persisting ]', function () {
-            util['#internal'].transactions.persisting.push({tx : {}});
+        it('should add the passed transaction and a deferred object to the end of [  priv.transactions.persisting ]', function () {
+            util[' priv'].transactions.persisting.push({tx : {}});
             util.commitTransaction(tx);
-            expect(util['#internal'].transactions.persisting).to.have.length(2);
-            expect(util['#internal'].transactions.persisting[1].tx).to.equal(tx);
-            expect(Q.isPromise(util['#internal'].transactions.persisting[1].deferred.promise)).to.be.true;
+            expect(util[' priv'].transactions.persisting).to.have.length(2);
+            expect(util[' priv'].transactions.persisting[1].tx).to.equal(tx);
+            expect(Q.isPromise(util[' priv'].transactions.persisting[1].deferred.promise)).to.be.true;
         });
 
         it('should remove the passed transaction from [ util.transactions.uncommitted ]', function () {
             util.commitTransaction(tx);
-            expect(util['#internal'].transactions.uncommitted.indexOf(tx)).to.equal(-1);
+            expect(util[' priv'].transactions.uncommitted.indexOf(tx)).to.equal(-1);
         });
 
         it('should return a promise', function () {
@@ -618,8 +636,8 @@ describe('ObjetDAta.Utility', function () {
             persistDeferred.resolve();
         });
 
-        it('should NOT add an id to the transaction before calling [ db.persist() ] when [ .#internal.id ] undefined', function (done) {
-            delete util['#internal'].id;
+        it('should NOT add an id to the transaction before calling [ db.persist() ] when [  priv.id ] undefined', function (done) {
+            delete util[' priv'].id;
             util.commitTransaction(tx)
             .then(function () {
                 expect(db.persist.firstCall.args[0].id).to.be.undefined;
@@ -628,8 +646,8 @@ describe('ObjetDAta.Utility', function () {
             persistDeferred.resolve();
         });
 
-        it('should add an [ .#internal.id ] to the transaction before calling [ db.persist() ]', function (done) {
-            util['#internal'].id = 42;
+        it('should add an [  priv.id ] to the transaction before calling [ db.persist() ]', function (done) {
+            util[' priv'].id = 42;
             util.commitTransaction(tx)
             .then(function () {
                 expect(db.persist.firstCall.args[0].id).to.equal(42);
@@ -734,7 +752,7 @@ describe('ObjetDAta.Utility', function () {
                                 promise.push(util.commitTransaction(tx[2]));
                                 promise[2].then(function () {
                                     expect(db.persist.callCount).to.equal(3);
-                                    expect(util['#internal'].transactions.errors).to.deep.equal(['The middle one failed.']);
+                                    expect(util[' priv'].transactions.errors).to.deep.equal(['The middle one failed.']);
                                 }).done(done);
                                 persistDeferred[1].reject('The middle one failed.');
                             }
@@ -767,12 +785,12 @@ describe('ObjetDAta.Utility', function () {
                 util = new ObjetDAta.Utility(obj, {});
             });
 
-            it('should NOT add the passed transaction to [ .#internal.transactions.persisting ]', function () {
-                util['#internal'].transactions.persisting.push({tx : {}});
+            it('should NOT add the passed transaction to [  priv.transactions.persisting ]', function () {
+                util[' priv'].transactions.persisting.push({tx : {}});
                 util.commitTransaction(tx);
-                expect(util['#internal'].transactions.persisting).to.have.length(2);
-                expect(util['#internal'].transactions.persisting[1].tx).to.equal(tx);
-                expect(Q.isPromise(util['#internal'].transactions.persisting[1].deferred.promise)).to.be.true;
+                expect(util[' priv'].transactions.persisting).to.have.length(2);
+                expect(util[' priv'].transactions.persisting[1].tx).to.equal(tx);
+                expect(Q.isPromise(util[' priv'].transactions.persisting[1].deferred.promise)).to.be.true;
             });
 
             it('should return a promise', function () {
@@ -845,7 +863,7 @@ describe('ObjetDAta.Utility', function () {
 
             describe('when there are errors', function () {
                 beforeEach(function () {
-                    util['#internal'].transactions.errors.push('An error happened.', 'Another error happened.');
+                    util[' priv'].transactions.errors.push('An error happened.', 'Another error happened.');
                 });
 
                 it('should return a pre-rejected promise', function (done) {
@@ -859,7 +877,7 @@ describe('ObjetDAta.Utility', function () {
                 it('should clear the errors', function (done) {
                     util.whenFullyPersisted()
                     .fail(function () {
-                        expect(util['#internal'].transactions.errors).to.have.length(0);
+                        expect(util[' priv'].transactions.errors).to.have.length(0);
                     })
                     .done(done);
                 });

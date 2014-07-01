@@ -25,7 +25,7 @@ describe('db plugin: ejdb', function () {
                 config : {
                     dbFile : 'dbFileValue'
                 },
-                '#state' : {}
+                ' state' : {}
             };
         });
 
@@ -61,7 +61,7 @@ describe('db plugin: ejdb', function () {
                     config : {
                         openMode : like
                     },
-                    '#state' : {}
+                    ' state' : {}
                 };
             }
 
@@ -93,11 +93,11 @@ describe('db plugin: ejdb', function () {
             .done(done);
         });
 
-        it('should add the [ jb ] property to the database\'s #state', function (done) {
+        it('should add the [ jb ] property to the database\'s  state', function (done) {
             EJDB.open.returns({obj : 'opened database'});
             plugin.open(db)
             .then(function () {
-                expect(db['#state'].jb).to.deep.equal({obj : 'opened database'});
+                expect(db[' state'].jb).to.deep.equal({obj : 'opened database'});
             })
             .done(done);
         });
@@ -268,7 +268,7 @@ describe('db plugin: ejdb', function () {
                 close : sinon.stub()
             };
             db = {
-                '#state' : {
+                ' state' : {
                     jb : jb
                 }
             };
@@ -313,13 +313,13 @@ describe('db plugin: ejdb', function () {
                 update : sinon.stub()
             };
             db = {
-                '#state' : {
+                ' state' : {
                     jb : jb
                 }
             };
             tx = {
                 obj : {
-                    '#util' : {
+                    ' util' : {
                         collection : 'testCollection'
                     }
                 },
@@ -356,7 +356,7 @@ describe('db plugin: ejdb', function () {
             it('should set the returned oid as the id on the object', function (done) {
                 plugin.persist(db, tx)
                 .then(function () {
-                    expect(tx.obj['#util'].id).to.equal('testId');
+                    expect(tx.obj[' util'].id).to.equal('testId');
                 })
                 .done(done);
             });

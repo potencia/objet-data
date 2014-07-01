@@ -41,16 +41,16 @@ describe('ObjetDAta.Utility.Transaction', function () {
 
     describe('.commit()', function () {
         beforeEach(function () {
-            obj['#util'] = {
+            obj[' util'] = {
                 commitTransaction : sinon.stub().returns('I promise...')
             };
         });
 
         describe('when autoCommit', function () {
-            it('should call .obj.#util.commitTransaction with itself and return the result', function () {
+            it('should call .obj[\' util\'].commitTransaction with itself and return the result', function () {
                 var returnValue = tx.commit();
-                expect(obj['#util'].commitTransaction.callCount).to.equal(1);
-                expect(obj['#util'].commitTransaction.firstCall.args).to.deep.equal([tx]);
+                expect(obj[' util'].commitTransaction.callCount).to.equal(1);
+                expect(obj[' util'].commitTransaction.firstCall.args).to.deep.equal([tx]);
                 expect(returnValue).to.equal('I promise...');
             });
         });
@@ -62,7 +62,7 @@ describe('ObjetDAta.Utility.Transaction', function () {
 
             it('should not call commitTransaction but it should return a promise', function () {
                 var returnValue = tx.commit();
-                expect(obj['#util'].commitTransaction.callCount).to.equal(0);
+                expect(obj[' util'].commitTransaction.callCount).to.equal(0);
                 expect(Q.isPromise(returnValue)).to.true;
             });
 

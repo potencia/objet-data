@@ -23,8 +23,8 @@ describe('ObjetDAta.Database', function () {
             conf.location = 'some/other/location';
         });
 
-        it('should create a readonly, hidden property [ #state ]', function () {
-            var descriptor = Object.getOwnPropertyDescriptor(db, '#state');
+        it('should create a readonly, hidden property [  state ]', function () {
+            var descriptor = Object.getOwnPropertyDescriptor(db, ' state');
             expect(descriptor.writable).to.be.false;
             expect(descriptor.enumerable).to.be.false;
             expect(descriptor.configurable).to.be.false;
@@ -72,9 +72,9 @@ describe('ObjetDAta.Database', function () {
 
         it('should return the current isOpen state', function () {
             expect(db.isOpen).to.be.false;
-            db['#state'].isOpen = true;
+            db[' state'].isOpen = true;
             expect(db.isOpen).to.be.true;
-            db['#state'].isOpen = false;
+            db[' state'].isOpen = false;
             expect(db.isOpen).to.be.false;
         });
     });
@@ -95,9 +95,9 @@ describe('ObjetDAta.Database', function () {
 
         it('should return the current lastError state', function () {
             expect(db.lastError).to.be.undefined;
-            db['#state'].lastError = 'Some Error';
+            db[' state'].lastError = 'Some Error';
             expect(db.lastError).to.equal('Some Error');
-            delete db['#state'].lastError;
+            delete db[' state'].lastError;
             expect(db.lastError).to.be.undefined;
         });
     });
@@ -128,14 +128,14 @@ describe('ObjetDAta.Database', function () {
                 db.open(util)
                 .then(function () {
                     expect(util.getPluginProperty.calledWith('db', 'mongol', 'close')).to.be.true;
-                    expect(db['#state'].pluginClose).to.equal('fake close()');
+                    expect(db[' state'].pluginClose).to.equal('fake close()');
                 })
                 .done(done);
                 openDeferred.resolve({message : 'Congrats!'});
             });
 
             it('should do nothing when isOpen is already true', function () {
-                db['#state'].isOpen = true;
+                db[' state'].isOpen = true;
                 var promise = db.open(util);
                 expect(util.getPluginProperty.callCount).to.equal(0);
                 expect(pluginOpen.callCount).to.equal(0);
@@ -182,26 +182,26 @@ describe('ObjetDAta.Database', function () {
                 openDeferred.reject();
             });
 
-            it('should cause #state.closeResults to be undefined after successful opening of the database', function (done) {
+            it('should cause  state.closeResults to be undefined after successful opening of the database', function (done) {
                 db.open(util)
                 .then(function () {
-                    expect(db['#state'].closeResults).to.be.undefined;
+                    expect(db[' state'].closeResults).to.be.undefined;
                 })
                 .done(done);
                 openDeferred.resolve();
             });
 
-            it('should cause #state.openResults, #state.closeResults and #state.util to be undefined after failed opening of the database', function (done) {
-                db['#state'].openResults = 'open';
-                db['#state'].closeResults = 'close';
-                db['#state'].util = 'util';
+            it('should cause  state.openResults,  state.closeResults and  state.util to be undefined after failed opening of the database', function (done) {
+                db[' state'].openResults = 'open';
+                db[' state'].closeResults = 'close';
+                db[' state'].util = 'util';
                 db.open(util)
                 .then(function () {
                     expect(false, 'Should have failed.').to.be.true;
                 }, function () {
-                    expect(db['#state'].openResults).to.be.undefined;
-                    expect(db['#state'].closeResults).to.be.undefined;
-                    expect(db['#state'].util).to.be.undefined;
+                    expect(db[' state'].openResults).to.be.undefined;
+                    expect(db[' state'].closeResults).to.be.undefined;
+                    expect(db[' state'].util).to.be.undefined;
                 })
                 .done(done);
                 openDeferred.reject();
@@ -265,7 +265,7 @@ describe('ObjetDAta.Database', function () {
                 beforeEach(function (done) {
                     db.open(util).done(function () {
                         util.getPluginProperty.reset();
-                        db['#state'].pluginClose = pluginClose;
+                        db[' state'].pluginClose = pluginClose;
                         done();
                     });
                     openDeferred.resolve({message : 'You are now open for business.'});
@@ -279,7 +279,7 @@ describe('ObjetDAta.Database', function () {
                 });
 
                 it('should do nothing when isOpen is already false', function () {
-                    db['#state'].isOpen = false;
+                    db[' state'].isOpen = false;
                     var promise = db.close();
                     expect(util.getPluginProperty.callCount).to.equal(0);
                     expect(pluginClose.callCount).to.equal(0);
@@ -325,26 +325,26 @@ describe('ObjetDAta.Database', function () {
                     closeDeferred.reject();
                 });
 
-                it('should cause #state.openResults and #state.util to be undefined after successful closing of the database', function (done) {
+                it('should cause  state.openResults and  state.util to be undefined after successful closing of the database', function (done) {
                     db.close()
                     .then(function () {
-                        expect(db['#state'].openResults).to.be.undefined;
-                        expect(db['#state'].util).to.be.undefined;
+                        expect(db[' state'].openResults).to.be.undefined;
+                        expect(db[' state'].util).to.be.undefined;
                     })
                     .done(done);
                     closeDeferred.resolve();
                 });
 
-                it('should cause .openResults, .closeResults and .util on #state to be undefined after failed closing of the database', function (done) {
-                    db['#state'].openResults = 'open';
-                    db['#state'].closeResults = 'close';
+                it('should cause .openResults, .closeResults and .util on  state to be undefined after failed closing of the database', function (done) {
+                    db[' state'].openResults = 'open';
+                    db[' state'].closeResults = 'close';
                     db.close()
                     .then(function () {
                         expect(false, 'Should have failed.').to.be.true;
                     }, function () {
-                        expect(db['#state'].openResults).to.be.undefined;
-                        expect(db['#state'].closeResults).to.be.undefined;
-                        expect(db['#state'].util).to.be.undefined;
+                        expect(db[' state'].openResults).to.be.undefined;
+                        expect(db[' state'].closeResults).to.be.undefined;
+                        expect(db[' state'].util).to.be.undefined;
                     })
                     .done(done);
                     closeDeferred.reject();
@@ -395,7 +395,7 @@ describe('ObjetDAta.Database', function () {
             };
             tx = {
                 obj : {
-                    '#util' : util
+                    ' util' : util
                 },
                 data : {}
             };
@@ -461,7 +461,7 @@ describe('ObjetDAta.Database', function () {
                 tx.data.answer = 42;
                 db.open(util)
                 .done(function () {
-                    db['#state'].pluginClose = sinon.stub().returns(closeDeferred.promise);
+                    db[' state'].pluginClose = sinon.stub().returns(closeDeferred.promise);
                     db.close()
                     .done(function () {
                         util.getPluginProperty.reset();
@@ -513,24 +513,24 @@ describe('ObjetDAta.Database', function () {
                     promise = db.persist(tx);
                 });
 
-                it('should create tx.obj.#util.data when it does not exist', function (done) {
-                    delete tx.obj['#util'].data;
+                it('should create tx.obj[\' util\'].data when it does not exist', function (done) {
+                    delete tx.obj[' util'].data;
                     promise
                     .then(function () {
-                        expect(tx.obj['#util']).to.have.property('data');
-                        expect(tx.obj['#util'].data).to.be.an('object');
+                        expect(tx.obj[' util']).to.have.property('data');
+                        expect(tx.obj[' util'].data).to.be.an('object');
                     })
                     .done(done);
                     persistDeferred.resolve();
                 });
 
-                it('should add new fields from tx.data to tx.obj.#util.data', function (done) {
-                    tx.obj['#util'].data = {
+                it('should add new fields from tx.data to tx.obj[\' util\'].data', function (done) {
+                    tx.obj[' util'].data = {
                         firstName : 'Genghis'
                     };
                     promise
                     .then(function () {
-                        expect(tx.obj['#util'].data).to.deep.equal({
+                        expect(tx.obj[' util'].data).to.deep.equal({
                             firstName : 'Genghis',
                             lastName : 'Khan'
                         });
@@ -539,14 +539,14 @@ describe('ObjetDAta.Database', function () {
                     persistDeferred.resolve();
                 });
 
-                it('should change overwrite existing fields on tx.obj.#util.data using data from tx.data', function (done) {
-                    tx.obj['#util'].data = {
+                it('should change overwrite existing fields on tx.obj[\' util]\'].data using data from tx.data', function (done) {
+                    tx.obj[' util'].data = {
                         firstName : 'Genghis',
                         lastName : 'Hotula'
                     };
                     promise
                     .then(function () {
-                        expect(tx.obj['#util'].data).to.deep.equal({
+                        expect(tx.obj[' util'].data).to.deep.equal({
                             firstName : 'Genghis',
                             lastName : 'Khan'
                         });
@@ -580,7 +580,7 @@ describe('ObjetDAta.Database', function () {
         });
 
         it('should execute the [ validateId() ] function of the [ db ] plugin for it\'s [ type ]', function () {
-            db.validateId({'#util' : util}, 'someId');
+            db.validateId({' util' : util}, 'someId');
             expect(util.getPluginProperty.callCount).to.equal(1);
             expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'validateId']);
             expect(validateIdStub.callCount).to.equal(1);
@@ -588,9 +588,9 @@ describe('ObjetDAta.Database', function () {
         });
 
         it('should call a cached version of the plugin\'s validateId() after the first call', function () {
-            db.validateId({'#util' : util}, 'someId');
-            db.validateId({'#util' : util}, 'someOtherId');
-            db.validateId({'#util' : util}, 'yetAnotherId');
+            db.validateId({' util' : util}, 'someId');
+            db.validateId({' util' : util}, 'someOtherId');
+            db.validateId({' util' : util}, 'yetAnotherId');
             expect(util.getPluginProperty.callCount).to.equal(1);
             expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'validateId']);
             expect(validateIdStub.callCount).to.equal(3);

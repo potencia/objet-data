@@ -1,7 +1,8 @@
 'use strict';
 
 var constants = require('./constants'),
-I = '#internal',
+S = constants.S,
+P = constants.P,
 Q = require('q');
 
 function _createInvalidIdError(id, error) {
@@ -12,7 +13,7 @@ function Utility (obj, config) {
     var self = this;
     self.obj = obj;
 
-    Object.defineProperty(self, I, {
+    Object.defineProperty(self, P, {
         enumerable : false,
         configurable : false,
         writable : false,
@@ -29,6 +30,8 @@ function Utility (obj, config) {
         }
     });
 
+    self[P][S] = 0;
+
     Object.defineProperty(self.obj, constants.U, {
         value : self,
         writable : false,
@@ -39,23 +42,23 @@ function Utility (obj, config) {
         enumerable : true,
         configurable : false,
         get : function () {
-            return self[I].id;
+            return self[P].id;
         },
         set : function (id) {
             self.database
             .then(function (database) {
                 var error = database.validateId(self.obj, id);
                 if (error) {
-                    self[I].transactions.errors.push(_createInvalidIdError(id, error));
+                    self[P].transactions.errors.push(_createInvalidIdError(id, error));
                 } else {
-                    self[I].id = id;
+                    self[P].id = id;
                 }
             });
         }
     });
 
     if (config.db) {
-        self[I].database = config.db;
+        self[P].database = config.db;
     }
     if (config.definition) {
         if (config.definition.collection) {
@@ -135,6 +138,14 @@ function _getPluginProperty(obj, type, name, property, state) {
     return valueDescriptor.value;
 }
 
+Utility.prototype.createGetter = function createGetter(fn) {
+    return createGetter.template.bind(this, fn);
+};
+
+Utility.prototype.createGetter.template = function (fn) {
+    return this.isLoaded() ? fn.call(this) : undefined;
+};
+
 Utility.prototype.getPluginProperty = function (type, name, property) {
     return _getPluginProperty(this.obj, type, name, property);
 };
@@ -145,9 +156,9 @@ Utility.pluginDefaults.type.createAccessor = function (util, obj, key) {
     Object.defineProperty(obj, key, {
         enumerable : true,
         configurable : false,
-        get : function () {
-            return util.data[key];
-        },
+        get : util.createGetter(function () {
+            return this.data[key];
+        }),
         set : function (value) {
             util.getTransaction()
             .then(function (tx) {
@@ -166,16 +177,16 @@ Object.defineProperty(Utility.prototype, 'database', {
     enumerable : true,
     configurable : false,
     get : function () {
-        if (this[I].database) {
-            return Q(this[I].database);
+        if (this[P].database) {
+            return Q(this[P].database);
         } else {
             var deferred = Q.defer();
-            this[I].deferred.setDatabase.push(deferred);
+            this[P].deferred.setDatabase.push(deferred);
             return deferred.promise;
         }
     },
     set : function (database) {
-        var error, internal = this[I];
+        var error, internal = this[P];
         internal.database = database;
         internal.deferred.setDatabase.forEach(function (d) { d.resolve(this); }, internal.database);
         internal.deferred.setDatabase.length = 0;
@@ -183,7 +194,7 @@ Object.defineProperty(Utility.prototype, 'database', {
             error = internal.database.validateId(internal.id);
         }
         if (error) {
-            this[I].transactions.errors.push(_createInvalidIdError(internal.id, error));
+            this[P].transactions.errors.push(_createInvalidIdError(internal.id, error));
             delete internal.id;
         }
     }
@@ -191,7 +202,7 @@ Object.defineProperty(Utility.prototype, 'database', {
 
 Utility.prototype.getTransaction = function () {
     var deferred = Q.defer(), tx = new Utility.Transaction(this.obj);
-    this[I].transactions.uncommitted.push(tx);
+    this[P].transactions.uncommitted.push(tx);
     deferred.resolve(tx);
     return deferred.promise;
 };
@@ -200,28 +211,28 @@ Utility.prototype.commitTransaction = function (tx) {
     var self = this, todo = {
         tx : tx,
         deferred : Q.defer()
-    }, alreadyPersisting = self[I].transactions.persisting.length, db,
-    uncommittedIndex = self[I].transactions.uncommitted.indexOf(tx);
+    }, alreadyPersisting = self[P].transactions.persisting.length, db,
+    uncommittedIndex = self[P].transactions.uncommitted.indexOf(tx);
     if (uncommittedIndex !== -1) {
-        self[I].transactions.uncommitted.splice(uncommittedIndex, 1);
+        self[P].transactions.uncommitted.splice(uncommittedIndex, 1);
     }
-    self[I].transactions.persisting.push(todo);
+    self[P].transactions.persisting.push(todo);
 
     function next () {
-        if (self[I].transactions.persisting.length > 0) {
-            var current = self[I].transactions.persisting[0];
-            if (self[I].id) {
-                current.tx.id = self[I].id;
+        if (self[P].transactions.persisting.length > 0) {
+            var current = self[P].transactions.persisting[0];
+            if (self[P].id) {
+                current.tx.id = self[P].id;
             }
             db.persist(current.tx)
             .then(function () {
                 current.deferred.resolve();
             }, function (reason) {
-                self[I].transactions.errors.push(reason);
+                self[P].transactions.errors.push(reason);
                 current.deferred.reject(reason);
             })
             .done(function () {
-                self[I].transactions.persisting.shift();
+                self[P].transactions.persisting.shift();
                 setImmediate(next);
             });
         } else {
@@ -240,21 +251,21 @@ Utility.prototype.commitTransaction = function (tx) {
 };
 
 Utility.prototype.isPersistencePending = function () {
-    return this[I].transactions.uncommitted.length + this[I].transactions.persisting.length > 0;
+    return this[P].transactions.uncommitted.length + this[P].transactions.persisting.length > 0;
 };
 
 Utility.prototype.whenFullyPersisted = function () {
     var errors, toNotify, deferred = Q.defer();
-    this[I].deferred.persistenceDone.push(deferred);
+    this[P].deferred.persistenceDone.push(deferred);
     if (!this.isPersistencePending()) {
-        if (this[I].transactions.errors.length) {
+        if (this[P].transactions.errors.length) {
             errors = [];
-            while (this[I].transactions.errors.length) {
-                errors.push(this['#internal'].transactions.errors.shift());
+            while (this[P].transactions.errors.length) {
+                errors.push(this[P].transactions.errors.shift());
             }
         }
-        while (this[I].deferred.persistenceDone.length) {
-            toNotify = this[I].deferred.persistenceDone.shift();
+        while (this[P].deferred.persistenceDone.length) {
+            toNotify = this[P].deferred.persistenceDone.shift();
             if (errors) {
                 toNotify.reject(errors);
             } else {
@@ -263,6 +274,10 @@ Utility.prototype.whenFullyPersisted = function () {
         }
     }
     return deferred.promise;
+};
+
+Utility.prototype.isLoaded = function () {
+    return !!this.data;
 };
 
 module.exports = Utility;
