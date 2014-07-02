@@ -36,15 +36,17 @@ describe('ObjetDAta.Utility', function () {
             expect(descriptor.enumerable).to.be.false;
             expect(descriptor.configurable).to.be.false;
             expect(descriptor.writable).to.be.false;
+            expect(descriptor.value.database.queue).to.be.instanceOf(require('../../../main/js/core/Queue'));
             expect(descriptor.value).to.deep.equal({
                 ' state' : 0,
                 deferred : {
                     setDatabase : [],
-                    persistenceDone : []
+                    persistenceDone : [],
+                    loadDone : []
                 },
-                transactions : {
-                    uncommitted : [],
-                    persisting : [],
+                database : {
+                    transactions : [],
+                    queue : descriptor.value.database.queue,
                     errors : []
                 }
             });
@@ -72,10 +74,10 @@ describe('ObjetDAta.Utility', function () {
             expect(util).to.not.have.property('data');
         });
 
-        it('should set the [  priv.database ] property', function () {
+        it('should set the [  priv.database.instance ] property', function () {
             util = new ObjetDAta.Utility(obj, {db : {foo : true}});
-            expect(util[' priv']).to.have.property('database');
-            expect(util[' priv'].database).to.deep.equal({foo : true});
+            expect(util[' priv'].database).to.have.property('instance');
+            expect(util[' priv'].database.instance).to.deep.equal({foo : true});
         });
 
         it('should set the [ .collection ] property', function () {
@@ -108,14 +110,25 @@ describe('ObjetDAta.Utility', function () {
                 expect(descriptor.set).to.be.a('function');
             });
 
-            it('getter should always invoke .isLoaded()', function () {
-                sinon.stub(util, 'isLoaded');
+            it('getter should always invoke .getData()', function () {
+                sinon.stub(util, 'getData');
                 obj.name;
                 obj.age;
                 try {
-                    expect(util.isLoaded.callCount).to.equal(2);
+                    expect(util.getData.callCount).to.equal(2);
                 } finally {
-                    util.isLoaded.restore();
+                    util.getData.restore();
+                }
+            });
+
+            it('setter should always invoke .getTransaction()', function () {
+                sinon.stub(util, 'getTransaction').returns(Q());
+                obj.name = 'John Johnson';
+                obj.age = 42;
+                try {
+                    expect(util.getTransaction.callCount).to.equal(2);
+                } finally {
+                    util.getTransaction.restore();
                 }
             });
         });
@@ -177,11 +190,11 @@ describe('ObjetDAta.Utility', function () {
                     db.validateId.returns('Sorry. That\'s a bad id.');
                 });
 
-                it('should add the error string to [  priv.transactions.errors ]', function (done) {
+                it('should add the error string to [  priv.database.errors ]', function (done) {
                     obj.id = 'foo';
                     util.database
                     .then(function () {
-                        expect(util[' priv'].transactions.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Sorry. That\'s a bad id.');
+                        expect(util[' priv'].database.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Sorry. That\'s a bad id.');
                     }).done(done);
                 });
 
@@ -202,7 +215,7 @@ describe('ObjetDAta.Utility', function () {
                 });
 
                 it('should not set the value until the database is set', function (done) {
-                    expect(util[' priv'].database).to.be.undefined;
+                    expect(util[' priv'].database.instance).to.be.undefined;
                     obj.id = 'anything';
                     expect(util[' priv'].id).to.be.undefined;
                     util.database
@@ -445,7 +458,7 @@ describe('ObjetDAta.Utility', function () {
         describe('getter', function () {
             describe('when [  priv.database ] is already set', function () {
                 beforeEach(function () {
-                    util[' priv'].database = db;
+                    util[' priv'].database.instance = db;
                 });
 
                 it('should return an already fulfilled promise', function () {
@@ -494,7 +507,7 @@ describe('ObjetDAta.Utility', function () {
         describe('setter', function () {
             it('should set the [  priv.database ]', function () {
                 expect(util.database = db).to.equal(db);
-                expect(util[' priv'].database).to.equal(db);
+                expect(util[' priv'].database.instance).to.equal(db);
             });
 
             describe('when [ .id ] is NOT already set', function () {
@@ -542,14 +555,14 @@ describe('ObjetDAta.Utility', function () {
                         db.validateId.returns('Bad id');
                     });
 
-                    it('should add the error string to [  priv.transactions.errors ]', function (done) {
+                    it('should add the error string to [  priv.database.errors ]', function (done) {
                         util[' priv'].id = 'foo';
-                        expect(util[' priv'].transactions.errors).to.have.length(0);
+                        expect(util[' priv'].database.errors).to.have.length(0);
                         util.database = db;
                         util.database
                         .then(function () {
-                            expect(util[' priv'].transactions.errors).to.have.length(1);
-                            expect(util[' priv'].transactions.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Bad id');
+                            expect(util[' priv'].database.errors).to.have.length(1);
+                            expect(util[' priv'].database.errors[0]).to.equal('ObjetDAta.id.set(): id [ foo ] is not a valid id: Bad id');
                         }).done(done);
                     });
 
@@ -576,10 +589,10 @@ describe('ObjetDAta.Utility', function () {
             expect(Q.isPromise(util.getTransaction())).to.be.true;
         });
 
-        it('should add the transaction to [  priv.transactions.uncommitted ]', function (done) {
+        it('should add the transaction to [  priv.database.transactions ]', function (done) {
             util.getTransaction()
             .then(function (tx) {
-                expect(util[' priv'].transactions.uncommitted.indexOf(tx)).to.not.equal(-1);
+                expect(util[' priv'].database.transactions.indexOf(tx)).to.not.equal(-1);
             })
             .done(done);
         });
@@ -609,17 +622,20 @@ describe('ObjetDAta.Utility', function () {
             .done(done);
         });
 
-        it('should add the passed transaction and a deferred object to the end of [  priv.transactions.persisting ]', function () {
-            util[' priv'].transactions.persisting.push({tx : {}});
-            util.commitTransaction(tx);
-            expect(util[' priv'].transactions.persisting).to.have.length(2);
-            expect(util[' priv'].transactions.persisting[1].tx).to.equal(tx);
-            expect(Q.isPromise(util[' priv'].transactions.persisting[1].deferred.promise)).to.be.true;
+        it('should add the passed transaction and a deferred object to the end of [  priv.database.queue ]', function () {
+            sinon.stub(util[' priv'].database.queue, 'add');
+            try {
+                util.commitTransaction(tx);
+                expect(util[' priv'].database.queue.add.callCount).to.equal(1);
+                expect(util[' priv'].database.queue.add.firstCall.args[0].tx).to.equal(tx);
+            } finally {
+                util[' priv'].database.queue.add.restore();
+            }
         });
 
-        it('should remove the passed transaction from [ util.transactions.uncommitted ]', function () {
+        it('should remove the passed transaction from [ util.database.transactions ]', function () {
             util.commitTransaction(tx);
-            expect(util[' priv'].transactions.uncommitted.indexOf(tx)).to.equal(-1);
+            expect(util[' priv'].database.transactions.indexOf(tx)).to.equal(-1);
         });
 
         it('should return a promise', function () {
@@ -752,7 +768,7 @@ describe('ObjetDAta.Utility', function () {
                                 promise.push(util.commitTransaction(tx[2]));
                                 promise[2].then(function () {
                                     expect(db.persist.callCount).to.equal(3);
-                                    expect(util[' priv'].transactions.errors).to.deep.equal(['The middle one failed.']);
+                                    expect(util[' priv'].database.errors).to.deep.equal(['The middle one failed.']);
                                 }).done(done);
                                 persistDeferred[1].reject('The middle one failed.');
                             }
@@ -785,16 +801,39 @@ describe('ObjetDAta.Utility', function () {
                 util = new ObjetDAta.Utility(obj, {});
             });
 
-            it('should NOT add the passed transaction to [  priv.transactions.persisting ]', function () {
-                util[' priv'].transactions.persisting.push({tx : {}});
-                util.commitTransaction(tx);
-                expect(util[' priv'].transactions.persisting).to.have.length(2);
-                expect(util[' priv'].transactions.persisting[1].tx).to.equal(tx);
-                expect(Q.isPromise(util[' priv'].transactions.persisting[1].deferred.promise)).to.be.true;
-            });
-
             it('should return a promise', function () {
                 expect(Q.isPromise(util.commitTransaction(tx))).to.be.true;
+            });
+        });
+    });
+
+    describe('.isLoaded', function () {
+        beforeEach(function () {
+            util = new ObjetDAta.Utility(obj, {
+                db : {}
+            });
+        });
+
+        describe('when the object is already loaded', function () {
+            beforeEach(function () {
+                util[' priv'].state = 1;
+            });
+
+            it('should return true', function () {
+                expect(util.isLoaded()).to.be.true;
+            });
+        });
+
+        describe('when the object has not been loaded', function () {
+            it('should return false', function () {
+                expect(util.isLoaded()).to.be.false;
+            });
+
+            describe('when obj.id is not set', function () {
+                it('should not add a load object to [  priv.database.queue ]', function () {
+                    util.isLoaded();
+                    expect(util[' priv'].database.queue[' priv'].queue).to.have.length(0);
+                });
             });
         });
     });
@@ -823,6 +862,7 @@ describe('ObjetDAta.Utility', function () {
                 expect(util.isPersistencePending()).to.be.true;
             });
         });
+
         describe('when the object is currently persisting', function () {
             beforeEach(function (done) {
                 util.getTransaction()
@@ -863,7 +903,7 @@ describe('ObjetDAta.Utility', function () {
 
             describe('when there are errors', function () {
                 beforeEach(function () {
-                    util[' priv'].transactions.errors.push('An error happened.', 'Another error happened.');
+                    util[' priv'].database.errors.push('An error happened.', 'Another error happened.');
                 });
 
                 it('should return a pre-rejected promise', function (done) {
@@ -877,7 +917,7 @@ describe('ObjetDAta.Utility', function () {
                 it('should clear the errors', function (done) {
                     util.whenFullyPersisted()
                     .fail(function () {
-                        expect(util[' priv'].transactions.errors).to.have.length(0);
+                        expect(util[' priv'].database.errors).to.have.length(0);
                     })
                     .done(done);
                 });

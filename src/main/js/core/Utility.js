@@ -1,13 +1,36 @@
 'use strict';
 
 var constants = require('./constants'),
+Queue = require('./Queue'),
+Q = require('q'),
 S = constants.S,
 P = constants.P,
-Q = require('q');
+STATE_NEW = 0,
+STATE_LOADED = 1;
 
 function _createInvalidIdError(id, error) {
     return 'ObjetDAta.id.set(): id [ ' + id + ' ] is not a valid id: ' + error;
 }
+
+function DatabaseQueue (util) {
+    Queue.call(this);
+    this[P].globalContext.util = util;
+}
+
+DatabaseQueue.prototype = new Queue();
+
+DatabaseQueue.prototype.prepare = function () {
+    var context = this.context;
+    context.util.database
+    .then(function (database) {
+        context.db = database;
+    })
+    .then(this.resolve);
+};
+
+DatabaseQueue.prototype.drained = function () {
+    this[P].globalContext.util.whenFullyPersisted();
+};
 
 function Utility (obj, config) {
     var self = this;
@@ -20,17 +43,18 @@ function Utility (obj, config) {
         value : {
             deferred : {
                 setDatabase : [],
-                persistenceDone : []
+                persistenceDone : [],
+                loadDone : []
             },
-            transactions : {
-                uncommitted : [],
-                persisting : [],
+            database : {
+                transactions : [],
+                queue : new DatabaseQueue(self),
                 errors : []
             }
         }
     });
 
-    self[P][S] = 0;
+    self[P][S] = STATE_NEW;
 
     Object.defineProperty(self.obj, constants.U, {
         value : self,
@@ -49,7 +73,7 @@ function Utility (obj, config) {
             .then(function (database) {
                 var error = database.validateId(self.obj, id);
                 if (error) {
-                    self[P].transactions.errors.push(_createInvalidIdError(id, error));
+                    self[P].database.errors.push(_createInvalidIdError(id, error));
                 } else {
                     self[P].id = id;
                 }
@@ -58,7 +82,7 @@ function Utility (obj, config) {
     });
 
     if (config.db) {
-        self[P].database = config.db;
+        self[P].database.instance = config.db;
     }
     if (config.definition) {
         if (config.definition.collection) {
@@ -143,7 +167,23 @@ Utility.prototype.createGetter = function createGetter(fn) {
 };
 
 Utility.prototype.createGetter.template = function (fn) {
-    return this.isLoaded() ? fn.call(this) : undefined;
+    var data = this.getData();
+    return !!data ? fn.call(data) : undefined;
+};
+
+Utility.prototype.createSetter = function createSetter(fn) {
+    return createSetter.template.bind([this, fn]);
+};
+
+Utility.prototype.createSetter.template = function (value) {
+    var util = this[0],
+    fn = this[1];
+
+    util.getTransaction()
+    .then(function (tx) {
+        fn.call(tx.data, value);
+        tx.commit();
+    });
 };
 
 Utility.prototype.getPluginProperty = function (type, name, property) {
@@ -157,15 +197,11 @@ Utility.pluginDefaults.type.createAccessor = function (util, obj, key) {
         enumerable : true,
         configurable : false,
         get : util.createGetter(function () {
-            return this.data[key];
+            return this[key];
         }),
-        set : function (value) {
-            util.getTransaction()
-            .then(function (tx) {
-                tx.data[key] = value;
-                tx.commit();
-            });
-        }
+        set : util.createSetter(function (value) {
+            this[key] = value;
+        })
     });
 };
 
@@ -177,8 +213,8 @@ Object.defineProperty(Utility.prototype, 'database', {
     enumerable : true,
     configurable : false,
     get : function () {
-        if (this[P].database) {
-            return Q(this[P].database);
+        if (this[P].database.instance) {
+            return Q(this[P].database.instance);
         } else {
             var deferred = Q.defer();
             this[P].deferred.setDatabase.push(deferred);
@@ -186,82 +222,66 @@ Object.defineProperty(Utility.prototype, 'database', {
         }
     },
     set : function (database) {
-        var error, internal = this[P];
-        internal.database = database;
-        internal.deferred.setDatabase.forEach(function (d) { d.resolve(this); }, internal.database);
-        internal.deferred.setDatabase.length = 0;
-        if (internal.id) {
-            error = internal.database.validateId(internal.id);
+        var error;
+        this[P].database.instance = database;
+        this[P].deferred.setDatabase.forEach(function (d) { d.resolve(this); }, this[P].database.instance);
+        this[P].deferred.setDatabase.length = 0;
+        if (this[P].id) {
+            error = this[P].database.instance.validateId(this[P].id);
         }
         if (error) {
-            this[P].transactions.errors.push(_createInvalidIdError(internal.id, error));
-            delete internal.id;
+            this[P].database.errors.push(_createInvalidIdError(this[P].id, error));
+            delete this[P].id;
         }
     }
 });
 
 Utility.prototype.getTransaction = function () {
     var deferred = Q.defer(), tx = new Utility.Transaction(this.obj);
-    this[P].transactions.uncommitted.push(tx);
+    this[P].database.transactions.push(tx);
     deferred.resolve(tx);
     return deferred.promise;
 };
 
+function PersistItem (tx) {
+    this.tx = tx;
+}
+
+PersistItem.prototype = new Queue.Item();
+
+PersistItem.prototype.run = function () {
+    var self = this, tx = this.tx, util = this.util;
+    if (util[P].id) {
+        tx.id = util[P].id;
+    }
+    self.db.persist(tx)
+    .then(self.resolve, function (reason) {
+        util[P].database.errors.push(reason);
+        self.reject(reason);
+    });
+};
+
 Utility.prototype.commitTransaction = function (tx) {
-    var self = this, todo = {
-        tx : tx,
-        deferred : Q.defer()
-    }, alreadyPersisting = self[P].transactions.persisting.length, db,
-    uncommittedIndex = self[P].transactions.uncommitted.indexOf(tx);
-    if (uncommittedIndex !== -1) {
-        self[P].transactions.uncommitted.splice(uncommittedIndex, 1);
+    var self = this, todo = new PersistItem(tx),
+    txIndex = self[P].database.transactions.indexOf(tx);
+    if (txIndex !== -1) {
+        self[P].database.transactions.splice(txIndex, 1);
     }
-    self[P].transactions.persisting.push(todo);
-
-    function next () {
-        if (self[P].transactions.persisting.length > 0) {
-            var current = self[P].transactions.persisting[0];
-            if (self[P].id) {
-                current.tx.id = self[P].id;
-            }
-            db.persist(current.tx)
-            .then(function () {
-                current.deferred.resolve();
-            }, function (reason) {
-                self[P].transactions.errors.push(reason);
-                current.deferred.reject(reason);
-            })
-            .done(function () {
-                self[P].transactions.persisting.shift();
-                setImmediate(next);
-            });
-        } else {
-            self.whenFullyPersisted();
-        }
-    }
-    if (alreadyPersisting === 0) {
-        self.database
-        .then(function (database) {
-            db = database;
-        })
-        .then(next);
-    }
-
-    return todo.deferred.promise;
+    return self[P].database.queue.add(todo);
 };
 
 Utility.prototype.isPersistencePending = function () {
-    return this[P].transactions.uncommitted.length + this[P].transactions.persisting.length > 0;
+    return this[P].database.transactions.length > 0 || this[P].database.queue.isRunning();
 };
 
 Utility.prototype.whenFullyPersisted = function () {
     var errors, toNotify, deferred = Q.defer();
     this[P].deferred.persistenceDone.push(deferred);
     if (!this.isPersistencePending()) {
-        if (this[P].transactions.errors.length) {
+        if (this[P].database.errors.length) {
             errors = [];
-            while (this[P].transactions.errors.length) {
-                errors.push(this[P].transactions.errors.shift());
+            while (this[P].database.errors.length) {
+                errors.push(this[P].database.errors.shift());
             }
         }
         while (this[P].deferred.persistenceDone.length) {
@@ -276,8 +296,12 @@ Utility.prototype.whenFullyPersisted = function () {
     return deferred.promise;
 };
 
+Utility.prototype.getData = function () {
+    return this.data;
+};
+
 Utility.prototype.isLoaded = function () {
-    return !!this.data;
+    return this[P].state === STATE_LOADED;
 };
 
 module.exports = Utility;

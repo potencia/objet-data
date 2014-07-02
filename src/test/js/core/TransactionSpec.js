@@ -167,7 +167,7 @@ SpecialData.load(db, id); // will start loading the data using the id and return
 // shorthand for:
 //    var obj = new SpecialData(),initialize(db);
 //    obj.id = id;
-//    ObjetDAta.onLoaded(obj); // returns a promise
+//    ObjetDAta.whenFullyLoaded(obj); // returns a promise
 
 // objects can be queried for status regarding persisting
 ObjetDAta.isPersistencePending(sd); // returns immediate true or false
@@ -176,7 +176,7 @@ ObjetDAta.isPersistencePending(sd); // returns immediate true or false
 ObjetDAta.isLoaded(sd); // returns immediate true or false
 
 // objects can be queried for status regarding idle
-ObjetDAta.isIdle(sd); // returns immediate true or false - Alias for !(ObjetDAta.isPersistencePending(sd) || ObjetDAta.isLoaded(sd))
+ObjetDAta.isIdle(sd); // returns immediate true or false - Alias for (ObjetDAta.isLoaded(sd) || !ObjetDAta.isPersistencePending(sd))
 
 ObjetDAta.whenFullyPersisted
 - when any persistence operation fails, it records its error
