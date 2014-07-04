@@ -28,8 +28,62 @@ DatabaseQueue.prototype.prepare = function () {
     .then(this.resolve);
 };
 
-DatabaseQueue.prototype.drained = function () {
-    this[P].globalContext.util.whenFullyPersisted();
+function PersistItem (util, tx) {
+    this.tx = tx;
+    this.afterRun = function () {
+        util[P].database.persistItems--;
+        this.apply(null, arguments);
+        if (util[P].database.persistItems === 0) {
+            setImmediate(function () {
+                util.whenFullyPersisted();
+            });
+        }
+    };
+    util[P].database.persistItems++;
+}
+
+PersistItem.prototype = new Queue.Item();
+
+PersistItem.prototype.run = function () {
+    var self = this, tx = this.tx, util = this.util;
+    if (util[P].id) {
+        tx.id = util[P].id;
+    }
+    self.db.persist(tx)
+    .then(self.afterRun.bind(self.resolve),
+    self.afterRun.bind(function (reason) {
+        util[P].database.errors.push(reason);
+        self.reject(reason);
+    }));
+};
+
+function LoadItem (util, id) {
+    this.id = id;
+    this.afterRun = function () {
+        util[P].database.loadItems--;
+        if (util[P].database.loadItems === 0) {
+            setImmediate(function () {
+                util.whenFullyLoaded();
+            });
+        }
+        this.apply(null, arguments);
+    };
+    util[P].database.loadItems++;
+}
+
+LoadItem.prototype = new Queue.Item();
+
+LoadItem.prototype.run = function () {
+    var self = this, util = this.util;
+    self.db.load(self.id)
+    .then(self.afterRun.bind(function (loaded) {
+        util.data = loaded;
+        util[P][S] = STATE_LOADED;
+        self.resolve();
+    }), self.afterRun.bind(function (reason) {
+        util[P].database.errors.push(reason);
+        self.reject(reason);
+    }));
 };
 
 function Utility (obj, config) {
@@ -47,6 +101,8 @@ function Utility (obj, config) {
                 loadDone : []
             },
             database : {
+                persistItems : 0,
+                loadItems : 0,
                 transactions : [],
                 queue : new DatabaseQueue(self),
                 errors : []
@@ -243,55 +299,41 @@ Utility.prototype.getTransaction = function () {
     return deferred.promise;
 };
 
-function PersistItem (tx) {
-    this.tx = tx;
-}
-
-PersistItem.prototype = new Queue.Item();
-
-PersistItem.prototype.run = function () {
-    var self = this, tx = this.tx, util = this.util;
-    if (util[P].id) {
-        tx.id = util[P].id;
-    }
-    self.db.persist(tx)
-    .then(self.resolve, function (reason) {
-        util[P].database.errors.push(reason);
-        self.reject(reason);
-    });
-};
-
 Utility.prototype.commitTransaction = function (tx) {
-    var self = this, todo = new PersistItem(tx),
-    txIndex = self[P].database.transactions.indexOf(tx);
-    if (txIndex !== -1) {
-        self[P].database.transactions.splice(txIndex, 1);
+    var txIndex = this[P].database.transactions.indexOf(tx);
+    if (txIndex > -1) {
+        this[P].database.transactions.splice(txIndex, 1);
     }
-    return self[P].database.queue.add(todo);
+    return this[P].database.queue.add(new PersistItem(this, tx));
 };
 
 Utility.prototype.isPersistencePending = function () {
-    return this[P].database.transactions.length > 0 || this[P].database.queue.isRunning();
+    return this[P].database.transactions.length > 0 || this[P].database.persistItems > 0;
 };
 
+function _notifyAll (notificationArray, errorArray, obj) {
+    var errors, toNotify;
+    if (errorArray.length > 0) {
+        errors = [];
+        while (errorArray.length > 0) {
+            errors.push(errorArray.shift());
+        }
+    }
+    while (notificationArray.length > 0) {
+        toNotify = notificationArray.shift();
+        if (errors) {
+            toNotify.reject(errors);
+        } else {
+            toNotify.resolve(obj);
+        }
+    }
+}
+
 Utility.prototype.whenFullyPersisted = function () {
-    var errors, toNotify, deferred = Q.defer();
+    var deferred = Q.defer();
     this[P].deferred.persistenceDone.push(deferred);
     if (!this.isPersistencePending()) {
-        if (this[P].database.errors.length) {
-            errors = [];
-            while (this[P].database.errors.length) {
-                errors.push(this[P].database.errors.shift());
-            }
-        }
-        while (this[P].deferred.persistenceDone.length) {
-            toNotify = this[P].deferred.persistenceDone.shift();
-            if (errors) {
-                toNotify.reject(errors);
-            } else {
-                toNotify.resolve();
-            }
-        }
+        _notifyAll(this[P].deferred.persistenceDone, this[P].database.errors, this.obj);
     }
     return deferred.promise;
 };
@@ -301,7 +343,26 @@ Utility.prototype.getData = function () {
 };
 
 Utility.prototype.isLoaded = function () {
-    return this[P].state === STATE_LOADED;
+    if (this[P][S] === STATE_LOADED) {
+        return true;
+    }
+    if (this.obj.id) {
+        this.whenFullyLoaded();
+    }
+    return false;
+};
+
+Utility.prototype.whenFullyLoaded = function () {
+    var deferred = Q.defer();
+    this[P].deferred.loadDone.push(deferred);
+    if (this[P][S] === STATE_LOADED) {
+        _notifyAll(this[P].deferred.loadDone, this[P].database.errors, this.obj);
+    } else {
+        if (this[P].database.loadItems === 0) {
+            this[P].database.queue.add(new LoadItem(this, this.obj.id));
+        }
+    }
+    return deferred.promise;
 };
 
 module.exports = Utility;

@@ -121,12 +121,36 @@ Database.prototype.close = function () {
     }
 };
 
+function _onOpenDatabase (database, util, takeAction, actionTitle, actionCouldNot) {
+    var state = database[S];
+    if (state.isOpen) {
+        return takeAction();
+    } else {
+        if (state.closeResults && state.closeResults.code === NEVER_OPENED) {
+            return database.open(util).then(function () {
+                return takeAction();
+            });
+        }
+        return Q.reject(actionTitle + ': Could not ' + actionCouldNot + ' because the database is closed.');
+    }
+}
+
+Database.prototype.load = function (util, id) {
+    if (id === undefined) {
+        return Q.reject('Cannot load the object as no valid id has been set.');
+    }
+    var self = this;
+    return _onOpenDatabase(self, util, function () {
+        return _getPluginProperty(self, util, PLUGIN_TYPE, self.type, 'load')(self, id);
+    }, 'Database.prototype.load()', 'load the object');
+};
+
 Database.prototype.persist = function (tx) {
     if (Object.keys(tx.data).length === 0) {
         return Q();
     }
-    var self = this, state = self[S];
-    if (state.isOpen) {
+    var self = this;
+    return _onOpenDatabase(self, tx.obj[U], function () {
         return _getPluginProperty(self, tx.obj[U], PLUGIN_TYPE, self.type, 'persist')(self, tx)
         .then(function (result) {
             tx.obj[U].data = tx.obj[U].data || {};
@@ -135,14 +159,7 @@ Database.prototype.persist = function (tx) {
             });
             return result;
         });
-    } else {
-        if (state.closeResults && state.closeResults.code === NEVER_OPENED) {
-            return this.open(tx.obj[U]).then(function () {
-                return self.persist(tx);
-            });
-        }
-        return Q.reject('Database.prototype.persist(): Could not persist the transaction because the database is closed.');
-    }
+    }, 'Database.prototype.persist()', 'persist the transaction');
 };
 
 Database.prototype.validateId = function (obj, id) {

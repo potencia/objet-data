@@ -305,6 +305,18 @@ describe('db plugin: ejdb', function () {
         });
     });
 
+    describe('.load()', function () {
+        it('should return a promise');
+
+        it('should call EJDB.prototype.findOne() using the obj\'s collection and id');
+
+        it('should resolve with the returned object');
+
+        it('should reject with any error returned');
+
+        it('should reject with an error when no object is found');
+    });
+
     describe('.persist()', function () {
         var tx;
         beforeEach(function () {

@@ -56,7 +56,7 @@ describe('ObjetDAta.Database', function () {
         });
     });
 
-    describe('.isOpen', function () {
+    describe('.isOpen()', function () {
         beforeEach(function () {
             db = new ObjetDAta.Database('', {});
         });
@@ -384,6 +384,53 @@ describe('ObjetDAta.Database', function () {
         });
     });
 
+    describe('.load()', function () {
+        var pluginLoad, loadDeferred;
+        beforeEach(function () {
+            loadDeferred = Q.defer();
+            pluginLoad = sinon.stub().returns(loadDeferred.promise);
+            util = {
+                getPluginProperty : sinon.stub()
+            };
+            util.getPluginProperty.withArgs('db', 'mongol', 'load').returns(pluginLoad);
+            db = new ObjetDAta.Database('mongol', {});
+            db[' state'].isOpen = true;
+        });
+
+        it('should reject with an error when the id is not passed', function (done) {
+            db.load()
+            .fail(function (reason) {
+                expect(reason).to.equal('Cannot load the object as no valid id has been set.');
+            }).done(done);
+        });
+
+        it('should execute and cache the [ load() ] function of the [ db ] plugin for it\'s [ type ]', function () {
+            expect(db.cachedPluginProperties['db.mongol.load']).to.be.undefined;
+            expect(Q.isPromise(db.load(util, 42))).to.be.true;
+            expect(util.getPluginProperty.callCount).to.equal(1);
+            expect(util.getPluginProperty.firstCall.args).to.deep.equal(['db', 'mongol', 'load']);
+            expect(pluginLoad.callCount).to.equal(1);
+            expect(pluginLoad.firstCall.args).to.deep.equal([db, 42]);
+            expect(db.cachedPluginProperties['db.mongol.load']).to.deep.equal(pluginLoad);
+        });
+
+        it('should resolve with the results from the plugin resolution', function (done) {
+            db.load(util, 42)
+            .then(function (results) {
+                expect(results).to.deep.equal({name : 'Me', age : 42});
+            }).done(done);
+            loadDeferred.resolve({name : 'Me', age : 42});
+        });
+
+        it('should reject with the reason from the plugin rejection', function (done) {
+            db.load(util, 42)
+            .fail(function (reason) {
+                expect(reason).to.deep.equal('Bummer, dude!');
+            }).done(done);
+            loadDeferred.reject('Bummer, dude!');
+        });
+    });
+
     describe('.persist()', function () {
         var tx, pluginPersist, persistDeferred;
         beforeEach(function () {
@@ -539,7 +586,7 @@ describe('ObjetDAta.Database', function () {
                     persistDeferred.resolve();
                 });
 
-                it('should change overwrite existing fields on tx.obj[\' util]\'].data using data from tx.data', function (done) {
+                it('should overwrite existing fields on tx.obj[\' util]\'].data using data from tx.data', function (done) {
                     tx.obj[' util'].data = {
                         firstName : 'Genghis',
                         lastName : 'Hotula'
@@ -567,7 +614,7 @@ describe('ObjetDAta.Database', function () {
         });
     });
 
-    describe('.validateId', function () {
+    describe('.validateId()', function () {
         var validateIdStub;
         beforeEach(function () {
             db = new ObjetDAta.Database('mongol', {});

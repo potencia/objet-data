@@ -3,6 +3,7 @@
 var expect = require('chai').expect,
 sinon = require('sinon'),
 Q = require('q'),
+Queue = require('../../../main/js/core/Queue'),
 ObjetDAta = require('../../../../');
 
 function ChildClass () {}
@@ -10,7 +11,7 @@ function ChildClass () {}
 function GrandchildClass () {}
 
 describe('ObjetDAta.Utility', function () {
-    var obj, util, tx, promise, db;
+    var obj, util, tx, promise, db, queueAdd, item;
 
     beforeEach(function () {
         obj = {};
@@ -36,7 +37,7 @@ describe('ObjetDAta.Utility', function () {
             expect(descriptor.enumerable).to.be.false;
             expect(descriptor.configurable).to.be.false;
             expect(descriptor.writable).to.be.false;
-            expect(descriptor.value.database.queue).to.be.instanceOf(require('../../../main/js/core/Queue'));
+            expect(descriptor.value.database.queue).to.be.an.instanceOf(Queue);
             expect(descriptor.value).to.deep.equal({
                 ' state' : 0,
                 deferred : {
@@ -45,6 +46,8 @@ describe('ObjetDAta.Utility', function () {
                     loadDone : []
                 },
                 database : {
+                    persistItems : 0,
+                    loadItems : 0,
                     transactions : [],
                     queue : descriptor.value.database.queue,
                     errors : []
@@ -146,6 +149,250 @@ describe('ObjetDAta.Utility', function () {
                 expect(descriptor.configurable).to.be.false;
                 expect(descriptor.get).to.be.a('function');
                 expect(descriptor.set).to.be.a('function');
+            });
+        });
+    });
+
+    describe(' priv.database.queue', function () {
+        describe('.prepare', function () {
+            beforeEach(function () {
+                db = {name : 'database'};
+                util = new ObjetDAta.Utility(obj, {db : db});
+            });
+
+            it('should add the db to the [ globalContext ]', function (done) {
+                var deferred = Q.defer();
+                deferred.promise
+                .then(function () {
+                    expect(util[' priv'].database.queue[' priv'].globalContext).to.have.property('db');
+                    expect(util[' priv'].database.queue[' priv'].globalContext.db).to.equal(db);
+                }).done(done);
+
+                util[' priv'].database.queue.prepare.call({
+                    resolve : deferred.resolve,
+                    context : util[' priv'].database.queue[' priv'].globalContext
+                });
+            });
+        });
+    });
+
+    describe('PersistItem', function () {
+        var runCtx, persistDeferred, doRun;
+        beforeEach(function (done) {
+            persistDeferred = Q.defer();
+            db = {
+                persist : sinon.stub().returns(persistDeferred.promise)
+            };
+            util = new ObjetDAta.Utility(obj, {db : db});
+            queueAdd = sinon.stub(util[' priv'].database.queue, 'add');
+            util.getTransaction()
+            .then(function (newTx) {
+                var deferred = Q.defer();
+                doRun = deferred.promise;
+                tx = newTx;
+                tx.commit();
+                item = queueAdd.firstCall.args[0];
+                runCtx = util[' priv'].database.queue[' priv'].globalContext;
+                runCtx.db = util[' priv'].database.instance;
+                runCtx.tx = item.tx;
+                runCtx.afterRun = item.afterRun;
+                runCtx.resolve = deferred.resolve;
+                runCtx.reject = deferred.reject;
+            }).done(done);
+        });
+
+        describe('constructor', function () {
+            it('should set tx on itself', function () {
+                expect(item.tx).to.deep.equal(tx);
+            });
+
+            it('should increment [ util[ priv].database.persistItems ]', function () {
+                expect(util[' priv'].database.persistItems).to.equal(1);
+            });
+        });
+
+        describe('.run()', function () {
+            it('should call [ db.persist() ] with [ tx ]', function () {
+                item.run.call(runCtx);
+                expect(db.persist.callCount).to.equal(1);
+                expect(db.persist.firstCall.args).to.deep.equal([tx]);
+            });
+
+            it('should resolve with the results of [ db.persist() ] resolution', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .then(function (results) {
+                    expect(results).to.equal('We\'re all good here!');
+                }).done(done);
+                persistDeferred.resolve('We\'re all good here!');
+            });
+
+            it('should decrement [  util[ priv].database.persistItems ] on resolution', function (done) {
+                util[' priv'].database.persistItems = 3;
+                item.run.call(runCtx);
+                doRun
+                .then(function () {
+                    expect(util[' priv'].database.persistItems).to.equal(2);
+                }).done(done);
+                persistDeferred.resolve();
+            });
+
+            it('should decrement [  util[ priv].database.persistItems ] on rejection', function (done) {
+                util[' priv'].database.persistItems = 3;
+                item.run.call(runCtx);
+                doRun
+                .fail(function () {
+                    expect(util[' priv'].database.persistItems).to.equal(2);
+                }).done(done);
+                persistDeferred.reject();
+            });
+
+            it('should execute [ util.whenFullyPersisted() ] after the last PersistItem in the queue has been processed', function (done) {
+                util.whenFullyPersisted().then(function () {}).done(done);
+                item.run.call(runCtx);
+                persistDeferred.resolve();
+            });
+
+            it('should reject with the reason of [ db.persist() ] rejection', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .fail(function (reason) {
+                    expect(reason).to.equal('Ooo! To bad!');
+                }).done(done);
+                persistDeferred.reject('Ooo! To bad!');
+            });
+
+            it('should add the reject reason to [  priv.database.errors ]', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .fail(function () {
+                    expect(util[' priv'].database.errors).to.deep.equal(['Ooo! To bad!']);
+                }).done(done);
+                persistDeferred.reject('Ooo! To bad!');
+            });
+
+            describe('when [ obj.id ] is set', function () {
+                beforeEach(function () {
+                    util[' priv'].id = 42;
+                });
+
+                it('should add the id to the tx before calling [ db.persist() ]', function () {
+                    item.run.call(runCtx);
+                    expect(db.persist.firstCall.args[0]).to.have.property('id');
+                    expect(db.persist.firstCall.args[0].id).to.equal(42);
+                });
+            });
+        });
+    });
+
+    describe('LoadItem', function () {
+        var runCtx, loadDeferred, doRun;
+        beforeEach(function () {
+            loadDeferred = Q.defer();
+            db = {
+                load : sinon.stub().returns(loadDeferred.promise)
+            };
+            util = new ObjetDAta.Utility(obj, {db : db});
+            queueAdd = sinon.stub(util[' priv'].database.queue, 'add');
+            util[' priv'].id = 42;
+            util.whenFullyLoaded();
+            var deferred = Q.defer();
+            doRun = deferred.promise;
+            item = queueAdd.firstCall.args[0];
+            runCtx = util[' priv'].database.queue[' priv'].globalContext;
+            runCtx.db = util[' priv'].database.instance;
+            runCtx.id = item.id;
+            runCtx.afterRun = item.afterRun;
+            runCtx.resolve = deferred.resolve;
+            runCtx.reject = deferred.reject;
+        });
+
+        describe('constructor', function () {
+            it('should set id on itself', function () {
+                expect(item.id).to.deep.equal(42);
+            });
+
+            it('should increment [ util[ priv].database.loadItems ]', function () {
+                expect(util[' priv'].database.loadItems).to.equal(1);
+            });
+        });
+
+        describe('.run()', function () {
+            it('should call [ db.load() ] with [ id ]', function () {
+                item.run.call(runCtx);
+                expect(db.load.callCount).to.equal(1);
+                expect(db.load.firstCall.args).to.deep.equal([42]);
+            });
+
+            it('should resolve with [ undefined ]', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .then(function (results) {
+                    expect(results).to.be.undefined;
+                }).done(done);
+                loadDeferred.resolve({firstName : 'Arthur'});
+            });
+
+            it('should set [ util.data ] to the results of the [db.load() ] resolution', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .then(function () {
+                    expect(util.data).to.deep.equal({firstName : 'Arthur'});
+                }).done(done);
+                loadDeferred.resolve({firstName : 'Arthur'});
+            });
+
+            it('should set [ util[ priv][ state] ] to [ 1 ] on resolution', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .then(function () {
+                    expect(util[' priv'][' state']).to.equal(1);
+                }).done(done);
+                loadDeferred.resolve();
+            });
+
+            it('should decrement [  util[ priv].database.loadItems ] on resolution', function (done) {
+                util[' priv'].database.loadItems = 3;
+                item.run.call(runCtx);
+                doRun
+                .then(function () {
+                    expect(util[' priv'].database.loadItems).to.equal(2);
+                }).done(done);
+                loadDeferred.resolve();
+            });
+
+            it('should decrement [  util[ priv].database.loadItems ] on rejection', function (done) {
+                util[' priv'].database.loadItems = 3;
+                item.run.call(runCtx);
+                doRun
+                .fail(function () {
+                    expect(util[' priv'].database.loadItems).to.equal(2);
+                }).done(done);
+                loadDeferred.reject();
+            });
+
+            it('should execute [ util.whenFullyLoaded() ] after the last LoadItem in the queue has been processed', function (done) {
+                util.whenFullyLoaded().then(function () { }).done(done);
+                item.run.call(runCtx);
+                loadDeferred.resolve();
+            });
+
+            it('should reject with the reason of [ db.load() ] rejection', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .fail(function (reason) {
+                    expect(reason).to.equal('Ooo! To bad!');
+                }).done(done);
+                loadDeferred.reject('Ooo! To bad!');
+            });
+
+            it('should add the reject reason to [  priv.database.errors ]', function (done) {
+                item.run.call(runCtx);
+                doRun
+                .fail(function () {
+                    expect(util[' priv'].database.errors).to.deep.equal(['Ooo! To bad!']);
+                }).done(done);
+                loadDeferred.reject('Ooo! To bad!');
             });
         });
     });
@@ -579,7 +826,7 @@ describe('ObjetDAta.Utility', function () {
         });
     });
 
-    describe('.getTransaction', function () {
+    describe('.getTransaction()', function () {
         beforeEach(function () {
             obj = {someData : 'value'};
             util = new ObjetDAta.Utility(obj, {});
@@ -607,14 +854,10 @@ describe('ObjetDAta.Utility', function () {
         });
     });
 
-    describe('.commitTransaction', function () {
-        var persistDeferred;
+    describe('.commitTransaction()', function () {
         beforeEach(function (done) {
-            persistDeferred = Q.defer();
-            db = {
-                persist : sinon.stub().returns(persistDeferred.promise)
-            };
-            util = new ObjetDAta.Utility(obj, {db : db});
+            util = new ObjetDAta.Utility(obj, {db : {}});
+            queueAdd = sinon.stub(util[' priv'].database.queue, 'add').returns(Q());
             util.getTransaction()
             .then(function (thisTx) {
                 tx = thisTx;
@@ -622,192 +865,30 @@ describe('ObjetDAta.Utility', function () {
             .done(done);
         });
 
-        it('should add the passed transaction and a deferred object to the end of [  priv.database.queue ]', function () {
-            sinon.stub(util[' priv'].database.queue, 'add');
-            try {
-                util.commitTransaction(tx);
-                expect(util[' priv'].database.queue.add.callCount).to.equal(1);
-                expect(util[' priv'].database.queue.add.firstCall.args[0].tx).to.equal(tx);
-            } finally {
-                util[' priv'].database.queue.add.restore();
-            }
+        it('should add a PersistItem to [  priv.database.queue ]', function () {
+            util.commitTransaction(tx);
+            expect(queueAdd.callCount).to.equal(1);
+            expect(queueAdd.firstCall.args[0]).to.be.an.instanceOf(Queue.Item);
+            expect(queueAdd.firstCall.args[0].tx).to.equal(tx);
         });
 
-        it('should remove the passed transaction from [ util.database.transactions ]', function () {
+        it('should remove the passed transaction from [  priv.database.transactions ]', function () {
             util.commitTransaction(tx);
             expect(util[' priv'].database.transactions.indexOf(tx)).to.equal(-1);
+        });
+
+        it('should NOT touch [  priv.database.transactions ] when the passed transaction is not in the array', function () {
+            util[' priv'].database.transactions = [1, 2, 3];
+            util.commitTransaction(4);
+            expect(util[' priv'].database.transactions).to.have.length(3);
         });
 
         it('should return a promise', function () {
             expect(Q.isPromise(util.commitTransaction(tx))).to.be.true;
         });
-
-        it('should call [ db.persist() ] with the transaction', function (done) {
-            util.commitTransaction(tx)
-            .then(function () {
-                expect(db.persist.callCount).to.equal(1);
-                expect(db.persist.firstCall.args).to.deep.equal([tx]);
-            })
-            .done(done);
-            persistDeferred.resolve();
-        });
-
-        it('should NOT add an id to the transaction before calling [ db.persist() ] when [  priv.id ] undefined', function (done) {
-            delete util[' priv'].id;
-            util.commitTransaction(tx)
-            .then(function () {
-                expect(db.persist.firstCall.args[0].id).to.be.undefined;
-            })
-            .done(done);
-            persistDeferred.resolve();
-        });
-
-        it('should add an [  priv.id ] to the transaction before calling [ db.persist() ]', function (done) {
-            util[' priv'].id = 42;
-            util.commitTransaction(tx)
-            .then(function () {
-                expect(db.persist.firstCall.args[0].id).to.equal(42);
-            })
-            .done(done);
-            persistDeferred.resolve();
-        });
-
-        describe('returned promise', function () {
-            beforeEach(function () {
-                promise = util.commitTransaction(tx);
-            });
-
-            it('should resolve when the db.persist() call\'s promise resolves', function (done) {
-                promise.then(function () {
-                    done();
-                });
-                persistDeferred.resolve();
-            });
-
-            it('should reject with reason when the db.persist() call\'s promise reject', function (done) {
-                promise.fail(function (reason) {
-                    expect(reason).to.equal('Test Error');
-                    done();
-                });
-                persistDeferred.reject('Test Error');
-            });
-        });
-
-        describe('when called multiple times', function () {
-            beforeEach(function () {
-                persistDeferred = [];
-                promise = [];
-                tx = [];
-            });
-
-            it('should call [ db.persist() ] for each transaction serially when all are successful', function (done) {
-                persistDeferred.push(Q.defer());
-                persistDeferred.push(Q.defer());
-                db.persist.onCall(0).returns(persistDeferred[0].promise);
-                db.persist.onCall(1).returns(persistDeferred[1].promise);
-
-                util.getTransaction()
-                .then(function (tx0) {
-                    tx.push(tx0);
-                    return util.getTransaction();
-                })
-                .then(function (tx1) {
-                    tx.push(tx1);
-
-                    promise.push(util.commitTransaction(tx[0]));
-                    promise.push(util.commitTransaction(tx[1]));
-
-                    promise[0].then(function () {
-                        function wait () {
-                            if (db.persist.callCount < 2) {
-                                setImmediate(wait);
-                            } else {
-                                persistDeferred[1].resolve();
-                            }
-                        }
-                        wait();
-                    }).done();
-
-                    promise[1].then(function () {
-                        expect(db.persist.callCount).to.equal(2);
-                    }).done(done);
-                })
-                .then(function () {
-                    persistDeferred[0].resolve();
-                });
-            });
-
-            it('should call [ db.persist() ] for each transaction serially even when some are failed', function (done) {
-                persistDeferred.push(Q.defer());
-                persistDeferred.push(Q.defer());
-                persistDeferred.push(Q.defer());
-                db.persist.onCall(0).returns(persistDeferred[0].promise);
-                db.persist.onCall(1).returns(persistDeferred[1].promise);
-                db.persist.onCall(2).returns(persistDeferred[2].promise);
-
-                util.getTransaction()
-                .then(function (tx0) {
-                    tx.push(tx0);
-                    return util.getTransaction();
-                })
-                .then(function (tx1) {
-                    tx.push(tx1);
-                    return util.getTransaction();
-                })
-                .then(function (tx2) {
-                    tx.push(tx2);
-
-                    promise.push(util.commitTransaction(tx[0]));
-                    promise.push(util.commitTransaction(tx[1]));
-
-                    promise[0].then(function () {
-                        function wait () {
-                            if (db.persist.callCount < 2) {
-                                setImmediate(wait);
-                            } else {
-                                promise.push(util.commitTransaction(tx[2]));
-                                promise[2].then(function () {
-                                    expect(db.persist.callCount).to.equal(3);
-                                    expect(util[' priv'].database.errors).to.deep.equal(['The middle one failed.']);
-                                }).done(done);
-                                persistDeferred[1].reject('The middle one failed.');
-                            }
-                        }
-                        wait();
-                    }).done();
-
-                    promise[1].fail(function (reason) {
-                        expect(reason).to.equal('The middle one failed.');
-                        function wait () {
-                            if (db.persist.callCount < 3) {
-                                setImmediate(wait);
-                            } else {
-                                persistDeferred[2].resolve();
-                            }
-                        }
-                        wait();
-                    }).done();
-                })
-                .then(function () {
-                    persistDeferred[0].resolve();
-                })
-                .done();
-            });
-        });
-
-        describe('when [ db ] is not set', function () {
-            beforeEach(function () {
-                obj = {};
-                util = new ObjetDAta.Utility(obj, {});
-            });
-
-            it('should return a promise', function () {
-                expect(Q.isPromise(util.commitTransaction(tx))).to.be.true;
-            });
-        });
     });
 
-    describe('.isLoaded', function () {
+    describe('.isLoaded()', function () {
         beforeEach(function () {
             util = new ObjetDAta.Utility(obj, {
                 db : {}
@@ -816,7 +897,7 @@ describe('ObjetDAta.Utility', function () {
 
         describe('when the object is already loaded', function () {
             beforeEach(function () {
-                util[' priv'].state = 1;
+                util[' priv'][' state'] = 1;
             });
 
             it('should return true', function () {
@@ -825,37 +906,56 @@ describe('ObjetDAta.Utility', function () {
         });
 
         describe('when the object has not been loaded', function () {
+            beforeEach(function () {
+                queueAdd = sinon.stub(util[' priv'].database.queue, 'add');
+            });
+
             it('should return false', function () {
                 expect(util.isLoaded()).to.be.false;
             });
 
             describe('when obj.id is not set', function () {
-                it('should not add a load object to [  priv.database.queue ]', function () {
+                it('should NOT add a load object to [  priv.database.queue ]', function () {
                     util.isLoaded();
-                    expect(util[' priv'].database.queue[' priv'].queue).to.have.length(0);
+                    expect(queueAdd.callCount).to.equal(0);
+                });
+            });
+
+            describe('when obj.id is set', function () {
+                beforeEach(function () {
+                    util[' priv'].id = 42;
+                });
+
+                it('should add a load object to [  priv.database.queue ]', function () {
+                    util.isLoaded();
+                    expect(queueAdd.callCount).to.equal(1);
+                    expect(queueAdd.firstCall.args[0]).to.be.an.instanceOf(Queue.Item);
+                    expect(queueAdd.firstCall.args[0].id).to.equal(42);
                 });
             });
         });
     });
 
-    describe('.isPersistencePending', function () {
+    describe('.isPersistencePending()', function () {
         beforeEach(function () {
-            util = new ObjetDAta.Utility(obj, {
-                db : {
-                    persist : sinon.stub().returns(Q.defer().promise)
-                }
-            });
+            util = new ObjetDAta.Utility(obj, {db : {}});
         });
 
-        describe('when the object is already fully persisted', function () {
+        describe('when the there are no uncommitted transactions and the database queue has no persistItems', function () {
+            beforeEach(function () {
+                util[' priv'].database.transactions.length = 0;
+                util[' priv'].database.persistItems = 0;
+            });
+
             it('should return false', function () {
                 expect(util.isPersistencePending()).to.be.false;
             });
         });
 
-        describe('when the object has outstanding transactions', function () {
+        describe('when the object has uncommitted transactions', function () {
             beforeEach(function () {
-                util.getTransaction();
+                util[' priv'].database.transactions.push({});
+                util[' priv'].database.persistItems = 0;
             });
 
             it('should return true', function () {
@@ -863,13 +963,10 @@ describe('ObjetDAta.Utility', function () {
             });
         });
 
-        describe('when the object is currently persisting', function () {
-            beforeEach(function (done) {
-                util.getTransaction()
-                .then(function (tx) {
-                    tx.commit();
-                })
-                .done(done);
+        describe('when the database queue has persistItems', function () {
+            beforeEach(function () {
+                util[' priv'].database.transactions.length = 0;
+                util[' priv'].database.persistItems = 1;
             });
 
             it('should return true', function () {
@@ -878,73 +975,91 @@ describe('ObjetDAta.Utility', function () {
         });
     });
 
-    describe('.whenFullyPersisted', function () {
-        var persistDeferred;
+    describe('_notifyAll methods', function () {
+        // All these methods use _notifyAll for the notification logic. That logic only needs to be tested once through .whenFullyPersisted()
         beforeEach(function () {
-            persistDeferred = Q.defer();
-            util = new ObjetDAta.Utility(obj, {
-                db : {
-                    persist : sinon.stub().returns(persistDeferred.promise)
-                }
+            util = new ObjetDAta.Utility(obj, {db : {}});
+            queueAdd = sinon.stub(util[' priv'].database.queue, 'add');
+        });
+
+        describe('.whenFullyLoaded()', function () {
+            it('should work with the [  priv.deferred.loadDone ] array', function (done) {
+                var deferred = {
+                    resolve : sinon.stub()
+                };
+                util[' priv'].deferred.loadDone.push(deferred);
+                util[' priv'][' state'] = 1;
+                util.whenFullyLoaded()
+                .then(function () {
+                    expect(deferred.resolve.callCount).to.equal(1);
+                }).done(done);
+            });
+
+            it('should start the loading process if it has not already been started', function () {
+                util[' priv'].id = 42;
+                util.whenFullyLoaded();
+                util.whenFullyLoaded();
+                expect(queueAdd.callCount).to.equal(1);
+                expect(queueAdd.firstCall.args[0]).to.be.an.instanceOf(Queue.Item);
+                expect(queueAdd.firstCall.args[0].id).to.equal(42);
             });
         });
 
-        it('should return a promise', function () {
-            expect(Q.isPromise(util.whenFullyPersisted())).to.be.true;
-        });
-
-        describe('when the object is already fully persisted', function () {
-            describe('when there are no errors', function () {
-                it('should return a pre-resolved promise', function (done) {
-                    util.whenFullyPersisted()
-                    .done(done);
-                });
+        describe('.whenFullyPersisted()', function () {
+            it('should return a promise', function () {
+                expect(Q.isPromise(util.whenFullyPersisted())).to.be.true;
             });
 
-            describe('when there are errors', function () {
-                beforeEach(function () {
-                    util[' priv'].database.errors.push('An error happened.', 'Another error happened.');
-                });
-
-                it('should return a pre-rejected promise', function (done) {
-                    util.whenFullyPersisted()
-                    .then(function () {
-                        expect(false, 'Should have failed.').to.be.true;
-                    }, function () {})
-                    .done(done);
-                });
-
-                it('should clear the errors', function (done) {
-                    util.whenFullyPersisted()
-                    .fail(function () {
-                        expect(util[' priv'].database.errors).to.have.length(0);
-                    })
-                    .done(done);
-                });
-
-                it('should preserve the order of the errors', function (done) {
-                    util.whenFullyPersisted()
-                    .fail(function (errors) {
-                        expect(errors).to.deep.equal(['An error happened.', 'Another error happened.']);
-                    })
-                    .done(done);
-                });
-            });
-        });
-
-        describe('when the object is currently persisting', function () {
-            beforeEach(function (done) {
-                util.getTransaction()
-                .then(function (tx) {
-                    tx.commit();
-                })
-                .done(done);
+            it('should work with the [  priv.deferred.persistenceDone ] array', function (done) {
+                var deferred = {
+                    resolve : sinon.stub()
+                };
+                util[' priv'].deferred.persistenceDone.push(deferred);
+                util.whenFullyPersisted()
+                .then(function () {
+                    expect(deferred.resolve.callCount).to.equal(1);
+                }).done(done);
             });
 
-            describe('when persisting is successful', function () {
-                it('should have its promise resolved', function (done) {
-                    util.whenFullyPersisted().done(done);
-                    persistDeferred.resolve();
+            describe('when the object is already fully persisted', function () {
+                describe('when there are no errors', function () {
+                    it('should returned promise should resolve immediately', function (done) {
+                        util.whenFullyPersisted()
+                        .then(function (result) {
+                            expect(result).to.equal(obj);
+                        })
+                        .done(done);
+                    });
+                });
+
+                describe('when there are errors', function () {
+                    beforeEach(function () {
+                        util[' priv'].database.errors.push('An error happened.', 'Another error happened.');
+                    });
+
+                    it('should return a pre-rejected promise', function (done) {
+                        util.whenFullyPersisted()
+                        .then(function () {
+                            expect(false, 'Should have failed.').to.be.true;
+                        }, function () {})
+                        .done(done);
+                    });
+
+                    it('should clear the errors', function (done) {
+                        util.whenFullyPersisted()
+                        .fail(function () {
+                            expect(util[' priv'].database.errors).to.have.length(0);
+                        })
+                        .done(done);
+                    });
+
+                    it('should preserve the order of the errors', function (done) {
+                        util.whenFullyPersisted()
+                        .fail(function (errors) {
+                            expect(errors).to.deep.equal(['An error happened.', 'Another error happened.']);
+                        })
+                        .done(done);
+                    });
                 });
             });
         });
